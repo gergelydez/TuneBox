@@ -26,6 +26,7 @@ data class Track(
     val source: Source,
     val file: File? = null,
     val driveId: String? = null,
+    val folder: String = "", // subfolderul din TuneBox („” = principal)
 ) {
     val title get() = name.substringBeforeLast('.')
 }
@@ -57,16 +58,23 @@ object Library {
         return f
     }
 
+    /** Nume de folder sigur (fără caractere interzise). */
+    fun cleanFolder(name: String): String =
+        name.replace(Regex("""[\\/:*?"<>|]"""), " ").replace(Regex("\\s+"), " ").trim().take(60)
+
+    private fun relPath(folder: String) =
+        if (folder.isBlank()) relativePath else "$relativePath${cleanFolder(folder)}/"
+
     private fun legacyDir() =
         File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), FOLDER)
 
-    fun save(context: Context, file: File): Boolean {
+    fun save(context: Context, file: File, folder: String = ""): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val resolver = context.contentResolver
             val values = ContentValues().apply {
                 put(MediaStore.Audio.Media.DISPLAY_NAME, file.name)
                 put(MediaStore.Audio.Media.MIME_TYPE, "audio/mpeg")
-                put(MediaStore.Audio.Media.RELATIVE_PATH, relativePath)
+                put(MediaStore.Audio.Media.RELATIVE_PATH, relPath(folder))
                 put(MediaStore.Audio.Media.IS_PENDING, 1)
             }
             val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
@@ -84,7 +92,7 @@ object Library {
             return true
         }
 
-        val dir = legacyDir().apply { mkdirs() }
+        val dir = (if (folder.isBlank()) legacyDir() else File(legacyDir(), cleanFolder(folder))).apply { mkdirs() }
         var dest = File(dir, file.name)
         var n = 2
         while (dest.exists()) dest = File(dir, "${file.nameWithoutExtension} ($n).${file.extension}").also { n++ }
@@ -101,6 +109,7 @@ object Library {
                 MediaStore.Audio.Media.DISPLAY_NAME,
                 MediaStore.Audio.Media.SIZE,
                 MediaStore.Audio.Media.DATE_ADDED,
+                MediaStore.Audio.Media.RELATIVE_PATH,
             )
             val tracks = mutableListOf<Track>()
             // fără permisiunea de citire, Android întoarce doar piesele create de aplicație
@@ -114,6 +123,7 @@ object Library {
                 val name = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
                 val size = c.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
                 val added = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+                val rel = c.getColumnIndexOrThrow(MediaStore.Audio.Media.RELATIVE_PATH)
                 while (c.moveToNext()) {
                     val uri = ContentUris.withAppendedId(collection, c.getLong(id))
                     tracks += Track(
@@ -123,6 +133,7 @@ object Library {
                         size = c.getLong(size),
                         added = c.getLong(added),
                         source = Source.LOCAL,
+                        folder = (c.getString(rel) ?: "").removePrefix(relativePath).trimEnd('/'),
                     )
                 }
             }
@@ -140,8 +151,24 @@ object Library {
                 size = it.length(),
                 added = it.lastModified() / 1000,
                 file = it,
+                folder = it.parentFile?.relativeTo(legacyDir())?.path.orEmpty().let { p -> if (p == ".") "" else p },
             )
         }
+    }
+
+    /** Mută o piesă de pe telefon în alt subfolder. Poate arunca SecurityException (fișiere care nu sunt ale aplicației). */
+    fun move(context: Context, track: Track, folder: String): Boolean {
+        track.file?.let { f ->
+            val dir = (if (folder.isBlank()) legacyDir() else File(legacyDir(), cleanFolder(folder))).apply { mkdirs() }
+            val dest = File(dir, f.name)
+            if (dest.exists()) return false
+            val ok = f.renameTo(dest)
+            MediaScannerConnection.scanFile(context, arrayOf(f.absolutePath, dest.absolutePath), null, null)
+            return ok
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
+        val values = ContentValues().apply { put(MediaStore.Audio.Media.RELATIVE_PATH, relPath(folder)) }
+        return context.contentResolver.update(track.uri, values, null, null) > 0
     }
 
     fun delete(context: Context, track: Track): Boolean {

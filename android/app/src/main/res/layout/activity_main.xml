@@ -123,6 +123,26 @@
                 android:textColorHint="@color/muted"
                 android:textSize="15sp" />
 
+            <HorizontalScrollView
+                android:id="@+id/folderScroll"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:clipToPadding="false"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:scrollbars="none"
+                android:visibility="gone">
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/folderChips"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:selectionRequired="true"
+                    app:singleLine="true"
+                    app:singleSelection="true" />
+            </HorizontalScrollView>
+
             <LinearLayout
                 android:id="@+id/actions"
                 android:layout_width="match_parent"
@@ -436,6 +456,27 @@
                         android:layout_marginTop="10dp"
                         android:text="Tot playlistul\nDacă linkul face parte dintr-un playlist"
                         android:textColor="@color/text" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:text="Salvează în folderul"
+                        android:textColor="@color/muted"
+                        android:textSize="13sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/folderBtn"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:layout_marginTop="6dp"
+                        android:gravity="start|center_vertical"
+                        android:text="TuneBox (principal)"
+                        android:textColor="@color/text"
+                        app:cornerRadius="12dp"
+                        app:icon="@drawable/ic_folder"
+                        app:iconTint="@color/brand" />
 
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/toDrive"

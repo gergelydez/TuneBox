@@ -1,5 +1,4 @@
-• Tabul „Pe telefon” arată acum toate piesele din Music/TuneBox, inclusiv cele puse de tine acolo
-• Sincronizare cu Google Drive: butonul „Sincronizează” urcă în Drive piesele care sunt doar pe telefon (sau automat, din meniul ⋮)
-• La fiecare piesă vezi dacă e în Drive, pe telefon sau în ambele
-• Ștergere de pe telefon, din Drive sau de peste tot, direct din aplicație
-• Merg și alte formate audio (m4a, ogg, flac…), nu doar MP3
+• Foldere: la descărcare alegi în ce folder se salvează piesa (în Drive și pe telefon) sau creezi unul nou
+• În Muzică, folderele apar ca butoane sus — „Redă tot” redă doar folderul ales, ca un playlist
+• Mută orice piesă în alt folder din meniul ⋮
+• Sincronizarea păstrează folderele (Music/TuneBox/Rock → Drive/TuneBox/Rock)

@@ -21,6 +21,7 @@ data class Job(
     val playlist: Boolean,
     val toDrive: Boolean = false,
     val keepLocal: Boolean = true,
+    val folder: String = "",
     val status: Status = Status.QUEUED,
     val progress: Float = 0f, // 0..100
     val title: String = "",
@@ -83,9 +84,12 @@ object Downloader {
     fun ytDlpVersion(context: Context): String =
         runCatching { YoutubeDL.getInstance().version(context) }.getOrNull() ?: "?"
 
-    fun enqueue(urls: List<String>, quality: Int, playlist: Boolean, toDrive: Boolean, keepLocal: Boolean) {
+    fun enqueue(urls: List<String>, quality: Int, playlist: Boolean, toDrive: Boolean, keepLocal: Boolean, folder: String) {
         val new = urls.map {
-            Job(url = it, quality = quality, playlist = playlist, toDrive = toDrive, keepLocal = keepLocal || !toDrive)
+            Job(
+                url = it, quality = quality, playlist = playlist, toDrive = toDrive,
+                keepLocal = keepLocal || !toDrive, folder = folder,
+            )
         }
         _jobs.update { new.reversed() + it }
     }
@@ -189,7 +193,7 @@ object Downloader {
                 update(job.id) { it.copy(status = Status.UPLOADING) }
                 current(job.id)?.let(onProgress)
                 try {
-                    Drive.upload(context, f)
+                    Drive.upload(context, f, subfolder = job.folder)
                     inDrive = true
                     uploaded++
                 } catch (e: Exception) {
@@ -198,7 +202,7 @@ object Downloader {
             }
             if (job.keepLocal || !inDrive) {
                 update(job.id) { it.copy(status = Status.SAVING) }
-                if (runCatching { Library.save(context, f) }.getOrDefault(false)) saved++
+                if (runCatching { Library.save(context, f, job.folder) }.getOrDefault(false)) saved++
             }
         }
         if (saved > 0 || uploaded > 0) libraryChanged()

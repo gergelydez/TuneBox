@@ -37,6 +37,9 @@ object Sync {
             .replace(Regex("\\s+\\(\\d+\\)$"), "") // „piesă (1)” = copie făcută de Android
             .trim()
 
+    /** Aceeași piesă în același folder (pe telefon și în Drive). */
+    fun trackKey(t: Track): String = Library.cleanFolder(t.folder).lowercase() + "/" + key(t.name)
+
     fun autoEnabled(ctx: Context) = ctx.getSharedPreferences("tunebox", Context.MODE_PRIVATE).getBoolean("auto_sync", false)
     fun setAuto(ctx: Context, on: Boolean) =
         ctx.getSharedPreferences("tunebox", Context.MODE_PRIVATE).edit().putBoolean("auto_sync", on).apply()
@@ -55,7 +58,7 @@ object Sync {
                 try {
                     val f = Library.copyToTemp(ctx, t, tmp)
                     try {
-                        Drive.upload(ctx, f, t.name)
+                        Drive.upload(ctx, f, t.name, t.folder)
                         uploaded++
                     } finally {
                         f.delete()

@@ -185,20 +185,186 @@ class MainActivity : AppCompatActivity() {
     private fun normalize(s: String) =
         Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
 
-    private fun inDrive(t: Track) = t.source == Source.DRIVE || Sync.key(t.name) in driveKeys
-    private fun onPhone(t: Track) = t.source == Source.LOCAL || Sync.key(t.name) in localKeys
-    private fun driveTwin(t: Track) = driveTracks.firstOrNull { Sync.key(it.name) == Sync.key(t.name) }
-    private fun localTwin(t: Track) = localTracks.firstOrNull { Sync.key(it.name) == Sync.key(t.name) }
-    private fun unsynced() = localTracks.filter { Sync.key(it.name) !in driveKeys }
+    private fun inDrive(t: Track) = t.source == Source.DRIVE || Sync.trackKey(t) in driveKeys
+    private fun onPhone(t: Track) = t.source == Source.LOCAL || Sync.trackKey(t) in localKeys
+    private fun driveTwin(t: Track) = driveTracks.firstOrNull { Sync.trackKey(it) == Sync.trackKey(t) }
+    private fun localTwin(t: Track) = localTracks.firstOrNull { Sync.trackKey(it) == Sync.trackKey(t) }
+    private fun unsynced() = localTracks.filter { Sync.trackKey(it) !in driveKeys }
+
+    // ---- foldere ----
+
+    private var folderFilter: String? = null // null = toate
+    private var chipLabels: List<String> = emptyList()
+    private val rootLabel = "Principal"
+
+    /** Toate folderele cunoscute (Drive, telefon și create de tine). */
+    private fun allFolders(): List<String> =
+        (Drive.folders + driveTracks.map { it.folder } + localTracks.map { it.folder } +
+            (prefs.getStringSet("folders", emptySet()) ?: emptySet()))
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+            .sortedBy { it.lowercase() }
+
+    private fun rememberFolder(name: String) {
+        val set = (prefs.getStringSet("folders", emptySet()) ?: emptySet()) + name
+        prefs.edit().putStringSet("folders", set).apply()
+    }
+
+    private fun folderLabel(name: String) = name.ifBlank { "TuneBox (principal)" }
+
+    private fun renderChips(all: List<Track>) {
+        val names = (all.map { it.folder } + if (source == Source.DRIVE) Drive.folders else emptyList())
+            .filter { it.isNotBlank() }.distinctBy { it.lowercase() }.sortedBy { it.lowercase() }
+        b.folderScroll.visibility = if (names.isEmpty()) View.GONE else View.VISIBLE
+        if (names.isEmpty()) {
+            folderFilter = null
+            return
+        }
+        val hasRoot = all.any { it.folder.isBlank() }
+        val labels = listOf("Toate") + (if (hasRoot) listOf(rootLabel) else emptyList()) + names
+        if (folderFilter != null && folderFilter!!.isNotBlank() && names.none { it.equals(folderFilter, true) }) folderFilter = null
+        if (labels != chipLabels) {
+            chipLabels = labels
+            b.folderChips.setOnCheckedStateChangeListener(null)
+            b.folderChips.removeAllViews()
+            labels.forEachIndexed { i, label ->
+                val chip = com.google.android.material.chip.Chip(this).apply {
+                    id = View.generateViewId()
+                    text = label
+                    isCheckable = true
+                    isCheckedIconVisible = false
+                    tag = when {
+                        i == 0 -> null
+                        hasRoot && i == 1 -> ""
+                        else -> label
+                    }
+                    if (i > 0 && !(hasRoot && i == 1)) chipIcon = getDrawable(R.drawable.ic_folder)
+                    chipIconTint = android.content.res.ColorStateList.valueOf(getColor(R.color.brand))
+                }
+                b.folderChips.addView(chip)
+            }
+            b.folderChips.setOnCheckedStateChangeListener { group, ids ->
+                val chip = ids.firstOrNull()?.let { group.findViewById<com.google.android.material.chip.Chip>(it) }
+                folderFilter = chip?.tag as String?
+                renderLibrary()
+            }
+        }
+        // bifăm chip-ul folderului curent fără să declanșăm din nou randarea
+        for (i in 0 until b.folderChips.childCount) {
+            val chip = b.folderChips.getChildAt(i) as com.google.android.material.chip.Chip
+            val want = (chip.tag as String?)?.lowercase() == folderFilter?.lowercase()
+            if (chip.isChecked != want) {
+                b.folderChips.setOnCheckedStateChangeListener(null)
+                chip.isChecked = want
+                b.folderChips.setOnCheckedStateChangeListener { group, ids ->
+                    val c = ids.firstOrNull()?.let { group.findViewById<com.google.android.material.chip.Chip>(it) }
+                    folderFilter = c?.tag as String?
+                    renderLibrary()
+                }
+            }
+        }
+    }
+
+    /** Fereastră de alegere a folderului, cu opțiunea „Folder nou”. */
+    private fun pickFolder(title: String, current: String, onPick: (String) -> Unit) {
+        val folders = allFolders()
+        val labels: Array<CharSequence> = (listOf(folderLabel("")) + folders + "＋ Folder nou…")
+            .map { it as CharSequence }.toTypedArray()
+        val checked = if (current.isBlank()) 0 else folders.indexOfFirst { it.equals(current, true) }.let { if (it < 0) -1 else it + 1 }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setSingleChoiceItems(labels, checked) { d, which ->
+                d.dismiss()
+                when (which) {
+                    0 -> onPick("")
+                    labels.size - 1 -> newFolder(onPick)
+                    else -> onPick(folders[which - 1])
+                }
+            }
+            .setNegativeButton("Anulează", null)
+            .show()
+    }
+
+    private fun newFolder(onPick: (String) -> Unit) {
+        val input = android.widget.EditText(this).apply {
+            hint = "ex. Rock, Petrecere, Mașină"
+            isSingleLine = true
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        }
+        val box = android.widget.FrameLayout(this).apply {
+            val p = (20 * resources.displayMetrics.density).toInt()
+            setPadding(p, p / 2, p, 0)
+            addView(input)
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("Folder nou")
+            .setView(box)
+            .setNegativeButton("Anulează", null)
+            .setPositiveButton("Creează") { _, _ ->
+                val name = Library.cleanFolder(input.text.toString())
+                if (name.isEmpty()) return@setPositiveButton toast("Scrie un nume pentru folder")
+                rememberFolder(name)
+                // îl creăm și în Drive, ca să apară imediat și pe celelalte telefoane
+                if (Drive.connected) lifecycleScope.launch(Dispatchers.IO) { runCatching { Drive.subfolderId(this@MainActivity, name) } }
+                onPick(name)
+            }
+            .show()
+        input.requestFocus()
+        dialog.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+    }
+
+    private fun moveTrack(t: Track, local: Track?, drive: Track?) {
+        pickFolder("Mută „${t.title}” în", t.folder) { folder ->
+            if (folder.equals(t.folder, true)) return@pickFolder
+            lifecycleScope.launch {
+                if (drive != null) {
+                    val ok = withContext(Dispatchers.IO) { runCatching { Drive.move(this@MainActivity, drive.driveId!!, folder) } }
+                    ok.onFailure { toast(it.message ?: "Nu am putut muta în Drive") }
+                }
+                if (local != null) moveLocal(local, folder) else {
+                    toast("Mutată în ${folderLabel(folder)} ✓")
+                    reloadLibrary()
+                }
+            }
+        }
+    }
+
+    private fun moveLocal(t: Track, folder: String) {
+        lifecycleScope.launch {
+            val res = withContext(Dispatchers.IO) { runCatching { Library.move(this@MainActivity, t, folder) } }
+            val e = res.exceptionOrNull()
+            when {
+                res.getOrNull() == true -> {
+                    toast("Mutată în ${folderLabel(folder)} ✓")
+                    reloadLibrary()
+                }
+                e is SecurityException && Build.VERSION.SDK_INT >= 30 -> {
+                    val pi = MediaStore.createWriteRequest(contentResolver, listOf(t.uri))
+                    afterConsent = { moveLocal(t, folder) }
+                    systemConsent.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+                }
+                Build.VERSION.SDK_INT >= 29 && e is RecoverableSecurityException -> {
+                    afterConsent = { moveLocal(t, folder) }
+                    systemConsent.launch(IntentSenderRequest.Builder(e.userAction.actionIntent.intentSender).build())
+                }
+                else -> {
+                    toast("Nu am putut muta piesa pe telefon")
+                    reloadLibrary()
+                }
+            }
+        }
+    }
 
     private fun renderLibrary() {
-        driveKeys = driveTracks.map { Sync.key(it.name) }.toSet()
-        localKeys = localTracks.map { Sync.key(it.name) }.toSet()
+        driveKeys = driveTracks.map { Sync.trackKey(it) }.toSet()
+        localKeys = localTracks.map { Sync.trackKey(it) }.toSet()
         val isDrive = source == Source.DRIVE
         val needsConnect = isDrive && !Drive.connected
         val all = if (isDrive) driveTracks else localTracks
+        if (needsConnect) b.folderScroll.visibility = View.GONE else renderChips(all)
+        val inFolder = folderFilter?.let { f -> all.filter { it.folder.equals(f, true) } } ?: all
         val q = normalize(b.search.text.toString().trim())
-        shown = if (q.isEmpty()) all else all.filter { normalize(it.title).contains(q) }
+        shown = if (q.isEmpty()) inFolder else inFolder.filter { normalize(it.title).contains(q) }
 
         b.driveConnect.visibility = if (needsConnect) View.VISIBLE else View.GONE
         b.search.visibility = if (needsConnect || all.isEmpty()) View.GONE else View.VISIBLE
@@ -209,6 +375,7 @@ class MainActivity : AppCompatActivity() {
         b.libEmpty.text = when {
             all.isEmpty() && isDrive -> "Încă nu ai piese în Drive.\nDescarcă ceva din tabul Descarcă."
             all.isEmpty() -> "Nicio piesă în Music/TuneBox.\nPiesele descărcate sau copiate acolo apar aici."
+            inFolder.isEmpty() -> "Folderul e gol."
             else -> "Nicio piesă găsită."
         }
         adapter.submitList(shown)
@@ -289,6 +456,7 @@ class MainActivity : AppCompatActivity() {
         if (local != null) menu.menu.add(0, 4, 2, "Șterge de pe telefon")
         if (drive != null) menu.menu.add(0, 5, 3, "Șterge din Google Drive")
         if (local != null && drive != null) menu.menu.add(0, 6, 4, "Șterge de peste tot")
+        menu.menu.add(0, 7, 1, "Mută în alt folder…")
         menu.setOnMenuItemClickListener {
             when (it.itemId) {
                 1 -> drive?.let { d -> saveToPhone(d) }
@@ -297,6 +465,7 @@ class MainActivity : AppCompatActivity() {
                 4 -> confirmDelete(t, local, null)
                 5 -> confirmDelete(t, null, drive)
                 6 -> confirmDelete(t, local, drive)
+                7 -> moveTrack(t, local, drive)
             }
             true
         }
@@ -383,10 +552,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Android cere confirmare pentru fișierele care nu au fost create de aplicație
-    private var afterSystemDelete: (() -> Unit)? = null
-    private val systemDelete = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
-        val next = afterSystemDelete
-        afterSystemDelete = null
+    private var afterConsent: (() -> Unit)? = null
+    private val systemConsent = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
+        val next = afterConsent
+        afterConsent = null
         if (res.resultCode == RESULT_OK) next?.invoke() else reloadLibrary()
     }
 
@@ -398,12 +567,12 @@ class MainActivity : AppCompatActivity() {
                 res.getOrNull() == true -> reloadLibrary()
                 e is SecurityException && Build.VERSION.SDK_INT >= 30 -> {
                     val pi = MediaStore.createDeleteRequest(contentResolver, listOf(t.uri))
-                    afterSystemDelete = { reloadLibrary() } // Android a șters deja fișierul
-                    systemDelete.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+                    afterConsent = { reloadLibrary() } // Android a șters deja fișierul
+                    systemConsent.launch(IntentSenderRequest.Builder(pi.intentSender).build())
                 }
                 Build.VERSION.SDK_INT >= 29 && e is RecoverableSecurityException -> {
-                    afterSystemDelete = { deleteLocal(t) } // acum avem voie: încercăm din nou
-                    systemDelete.launch(IntentSenderRequest.Builder(e.userAction.actionIntent.intentSender).build())
+                    afterConsent = { deleteLocal(t) } // acum avem voie: încercăm din nou
+                    systemConsent.launch(IntentSenderRequest.Builder(e.userAction.actionIntent.intentSender).build())
                 }
                 else -> {
                     toast("Nu am putut șterge piesa de pe telefon")
@@ -443,6 +612,7 @@ class MainActivity : AppCompatActivity() {
                 else -> null
             }
             h.v.sub.text = listOfNotNull(
+                "▸ ${t.folder}".takeIf { t.folder.isNotBlank() && folderFilter == null },
                 formatSize(t.size).takeIf { t.size > 0 },
                 DateUtils.getRelativeTimeSpanString(t.added * 1000).toString().takeIf { t.added > 0 },
                 where,
@@ -695,9 +865,20 @@ class MainActivity : AppCompatActivity() {
             renderDriveState()
         }
         b.keepLocal.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("keep_local", on).apply() }
+        renderFolderBtn()
+        b.folderBtn.setOnClickListener {
+            pickFolder("Salvează în folderul", prefs.getString("dl_folder", "") ?: "") { f ->
+                prefs.edit().putString("dl_folder", f).apply()
+                renderFolderBtn()
+            }
+        }
         b.paste.setOnClickListener { paste() }
         b.download.setOnClickListener { startDownload() }
         b.clearJobs.setOnClickListener { Downloader.clearFinished() }
+    }
+
+    private fun renderFolderBtn() {
+        b.folderBtn.text = folderLabel(prefs.getString("dl_folder", "") ?: "")
     }
 
     private fun renderDriveState() {
@@ -763,7 +944,8 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        Downloader.enqueue(links, quality(b.quality.checkedButtonId), b.playlist.isChecked, toDrive, keepLocal)
+        val folder = prefs.getString("dl_folder", "") ?: ""
+        Downloader.enqueue(links, quality(b.quality.checkedButtonId), b.playlist.isChecked, toDrive, keepLocal, folder)
         b.urls.setText("")
         DownloadService.start(this)
     }

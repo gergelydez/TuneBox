@@ -107,6 +107,8 @@ object Drive {
         token = null
         prefs(ctx).edit().clear().apply()
         _state.value = DriveState()
+        folders = emptyList()
+        folderIds = emptyMap()
         if (t != null) Thread { runCatching { GoogleAuthUtil.clearToken(ctx, t) } }.start()
     }
 
@@ -212,23 +214,71 @@ object Drive {
         return id
     }
 
-    fun list(ctx: Context): List<Track> {
-        val folder = folderId(ctx)
-        val query = "'$folder' in parents and trashed = false and mimeType contains 'audio/'"
-        val out = mutableListOf<Track>()
+    @Volatile var folders: List<String> = emptyList()
+        private set
+    @Volatile private var folderIds: Map<String, String> = emptyMap() // nume (litere mici) -> id
+
+    /** Subfolderele din TuneBox (ex. „Rock”, „Petrecere”). */
+    fun listFolders(ctx: Context): List<Pair<String, String>> {
+        val root = folderId(ctx)
+        val query = "'$root' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        val out = mutableListOf<Pair<String, String>>()
         var page: String? = null
         do {
-            val url = "$API/files?q=${q(query)}&orderBy=createdTime desc&pageSize=1000&spaces=drive" +
-                "&fields=nextPageToken,files(id,name,size,createdTime)" + (page?.let { "&pageToken=${q(it)}" } ?: "")
-            val json = JSONObject(call(ctx, "GET", url.replace(" ", "%20")))
+            val url = "$API/files?q=${q(query)}&pageSize=1000&spaces=drive&fields=nextPageToken,files(id,name)" +
+                (page?.let { "&pageToken=${q(it)}" } ?: "")
+            val json = JSONObject(call(ctx, "GET", url))
             val files = json.getJSONArray("files")
-            for (i in 0 until files.length()) out += files.getJSONObject(i).toTrack()
+            for (i in 0 until files.length()) files.getJSONObject(i).let { out += it.getString("name") to it.getString("id") }
             page = json.optString("nextPageToken").ifBlank { null }
         } while (page != null)
+        folderIds = out.associate { it.first.lowercase() to it.second }
+        folders = out.map { it.first }.sortedBy { it.lowercase() }
         return out
     }
 
-    private fun JSONObject.toTrack(): Track {
+    /** Id-ul folderului cu numele dat (gol = TuneBox); îl creează dacă nu există. */
+    fun subfolderId(ctx: Context, name: String): String {
+        val root = folderId(ctx)
+        if (name.isBlank()) return root
+        folderIds[name.lowercase()]?.let { return it }
+        listFolders(ctx)
+        folderIds[name.lowercase()]?.let { return it }
+        val meta = JSONObject().put("name", name).put("mimeType", "application/vnd.google-apps.folder")
+            .put("parents", JSONArray().put(root))
+        val id = JSONObject(call(ctx, "POST", "$API/files?fields=id", meta.toString())).getString("id")
+        folderIds = folderIds + (name.lowercase() to id)
+        folders = (folders + name).distinctBy { it.lowercase() }.sortedBy { it.lowercase() }
+        return id
+    }
+
+    fun list(ctx: Context): List<Track> {
+        val root = folderId(ctx)
+        val subs = listFolders(ctx)
+        val names = mapOf(root to "") + subs.associate { it.second to it.first }
+        val out = mutableListOf<Track>()
+        // câte 30 de foldere pe cerere, ca interogarea să nu fie prea lungă
+        for (chunk in names.keys.chunked(30)) {
+            val parents = chunk.joinToString(" or ") { "'$it' in parents" }
+            val query = "($parents) and trashed = false and mimeType contains 'audio/'"
+            var page: String? = null
+            do {
+                val url = "$API/files?q=${q(query)}&orderBy=createdTime desc&pageSize=1000&spaces=drive" +
+                    "&fields=nextPageToken,files(id,name,size,createdTime,parents)" + (page?.let { "&pageToken=${q(it)}" } ?: "")
+                val json = JSONObject(call(ctx, "GET", url.replace(" ", "%20")))
+                val files = json.getJSONArray("files")
+                for (i in 0 until files.length()) {
+                    val o = files.getJSONObject(i)
+                    val parent = o.optJSONArray("parents")?.optString(0).orEmpty()
+                    out += o.toTrack(names[parent].orEmpty())
+                }
+                page = json.optString("nextPageToken").ifBlank { null }
+            } while (page != null)
+        }
+        return out.sortedByDescending { it.added }
+    }
+
+    private fun JSONObject.toTrack(folder: String = ""): Track {
         val id = getString("id")
         return Track(
             id = "drive:$id",
@@ -238,6 +288,20 @@ object Drive {
             size = optString("size").toLongOrNull() ?: 0,
             added = parseTime(optString("createdTime")),
             source = Source.DRIVE,
+            folder = folder,
+        )
+    }
+
+    /** Mută o piesă în alt folder (gol = TuneBox). */
+    fun move(ctx: Context, driveId: String, folder: String) {
+        val target = subfolderId(ctx, folder)
+        val current = JSONObject(call(ctx, "GET", "$API/files/$driveId?fields=parents")).optJSONArray("parents")
+        val remove = (0 until (current?.length() ?: 0)).map { current!!.getString(it) }.filter { it != target }
+        if (remove.isEmpty() && current?.length() == 1) return
+        call(
+            ctx, "POST",
+            "$API/files/$driveId?addParents=$target&removeParents=${remove.joinToString(",")}&fields=id",
+            "{}", override = "PATCH",
         )
     }
 
@@ -248,8 +312,8 @@ object Drive {
     }.getOrDefault(0)
 
     /** Încarcă un MP3 în folderul TuneBox (încărcare „resumable”). */
-    fun upload(ctx: Context, file: File, name: String = file.name): Track {
-        val folder = folderId(ctx)
+    fun upload(ctx: Context, file: File, name: String = file.name, subfolder: String = ""): Track {
+        val folder = subfolderId(ctx, subfolder)
         val mime = Library.mimeOf(name)
         fun attempt(retry: Boolean): Track {
             val t = token(ctx)
@@ -288,7 +352,7 @@ object Drive {
                 val code = put.responseCode
                 val text = (if (code < 400) put.inputStream else put.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
                 if (code >= 400) throw IOException(apiError(text, code))
-                return JSONObject(text).toTrack()
+                return JSONObject(text).toTrack(subfolder)
             } finally {
                 put.disconnect()
             }
@@ -328,19 +392,28 @@ object Drive {
     fun saveCache(ctx: Context, tracks: List<Track>) {
         val arr = JSONArray()
         tracks.forEach {
-            arr.put(JSONObject().put("id", it.driveId).put("name", it.name).put("size", it.size).put("added", it.added))
+            arr.put(
+                JSONObject().put("id", it.driveId).put("name", it.name).put("size", it.size)
+                    .put("added", it.added).put("folder", it.folder)
+            )
         }
-        runCatching { File(ctx.filesDir, "drive.json").writeText(arr.toString()) }
+        val json = JSONObject().put("tracks", arr).put("folders", JSONArray(folders))
+        runCatching { File(ctx.filesDir, "drive.json").writeText(json.toString()) }
     }
 
     fun loadCache(ctx: Context): List<Track> = runCatching {
-        val arr = JSONArray(File(ctx.filesDir, "drive.json").readText())
+        val text = File(ctx.filesDir, "drive.json").readText()
+        // formatul vechi era doar lista de piese
+        val (arr, fl) = if (text.trimStart().startsWith("[")) JSONArray(text) to null else
+            JSONObject(text).let { it.getJSONArray("tracks") to it.optJSONArray("folders") }
+        if (fl != null && folders.isEmpty()) folders = (0 until fl.length()).map { fl.getString(it) }
         (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)
             val id = o.getString("id")
             Track(
                 id = "drive:$id", driveId = id, uri = streamUri(id), name = o.getString("name"),
                 size = o.optLong("size"), added = o.optLong("added"), source = Source.DRIVE,
+                folder = o.optString("folder"),
             )
         }
     }.getOrDefault(emptyList())
