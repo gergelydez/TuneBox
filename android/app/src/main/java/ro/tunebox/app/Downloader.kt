@@ -22,6 +22,7 @@ data class Job(
     val toDrive: Boolean = false,
     val keepLocal: Boolean = true,
     val folder: String = "",
+    val trimSilence: Boolean = true,
     val status: Status = Status.QUEUED,
     val progress: Float = 0f, // 0..100
     val title: String = "",
@@ -51,6 +52,15 @@ object Downloader {
     // crește de fiecare dată când se salvează piese noi, ca biblioteca să se reîncarce
     private val _libraryVersion = MutableStateFlow(0)
     val libraryVersion: StateFlow<Int> = _libraryVersion
+
+    // Taie liniștea de la început și de la sfârșit (sub -50 dB), păstrând 0,1 s la început și 0,3 s la final.
+    // Truc: areverse întoarce piesa ca să tăiem „începutul” sfârșitului. Pauzele din mijloc rămân neatinse.
+    private const val TRIM_SILENCE =
+        "silenceremove=start_periods=1:start_duration=0.2:start_threshold=-50dB:start_silence=0.1," +
+            "areverse," +
+            "silenceremove=start_periods=1:start_duration=0.2:start_threshold=-50dB:start_silence=0.3," +
+            "areverse"
+    private const val TRIM_MAX_SECONDS = 900
 
     private const val UPDATE_EVERY_MS = 3L * 24 * 60 * 60 * 1000
 
@@ -84,11 +94,14 @@ object Downloader {
     fun ytDlpVersion(context: Context): String =
         runCatching { YoutubeDL.getInstance().version(context) }.getOrNull() ?: "?"
 
-    fun enqueue(urls: List<String>, quality: Int, playlist: Boolean, toDrive: Boolean, keepLocal: Boolean, folder: String) {
+    fun enqueue(
+        urls: List<String>, quality: Int, playlist: Boolean, toDrive: Boolean, keepLocal: Boolean, folder: String,
+        trimSilence: Boolean,
+    ) {
         val new = urls.map {
             Job(
                 url = it, quality = quality, playlist = playlist, toDrive = toDrive,
-                keepLocal = keepLocal || !toDrive, folder = folder,
+                keepLocal = keepLocal || !toDrive, folder = folder, trimSilence = trimSilence,
             )
         }
         _jobs.update { new.reversed() + it }
@@ -126,7 +139,13 @@ object Downloader {
         val dir = File(context.cacheDir, "dl/${job.id}").apply { deleteRecursively(); mkdirs() }
         update(job.id) { it.copy(status = Status.RUNNING) }
 
-        val request = YoutubeDLRequest(job.url).apply {
+        var index = 0
+        var total = 0
+        var lastEmit = 0L
+        var error = ""
+        var canceled = false
+
+        fun request(trim: Boolean, matchFilter: String?) = YoutubeDLRequest(job.url).apply {
             addOption("-x")
             addOption("--audio-format", "mp3")
             addOption("--audio-quality", "${job.quality}K")
@@ -137,47 +156,70 @@ object Downloader {
             if (job.playlist) addOption("--ignore-errors")
             addOption("--trim-filenames", "120")
             addOption("--no-mtime")
+            addOption("--no-overwrites")
             addOption("-o", "${dir.absolutePath}/%(title)s.%(ext)s")
+            if (trim) addOption("--postprocessor-args", "ExtractAudio+ffmpeg_o:-af $TRIM_SILENCE")
+            if (matchFilter != null) addOption("--match-filter", matchFilter)
         }
 
-        var index = 0
-        var total = 0
-        var lastEmit = 0L
-        var error = ""
-        var canceled = false
+        /** Rulează yt-dlp; întoarce false dacă a fost anulat. */
+        fun exec(req: YoutubeDLRequest): Boolean {
+            try {
+                YoutubeDL.getInstance().execute(req, job.id) { progress, _, line ->
+                    itemRegex.find(line)?.let {
+                        index = it.groupValues[1].toInt()
+                        total = it.groupValues[2].toInt()
+                    }
+                    destRegex.find(line)?.let { m ->
+                        val title = File(m.groupValues[1]).nameWithoutExtension
+                        update(job.id) { it.copy(title = title) }
+                    }
+                    if (line.startsWith("[ExtractAudio]")) update(job.id) { it.copy(status = Status.CONVERTING) }
+                    else if (line.startsWith("[download]") && progress > 0) update(job.id) { it.copy(status = Status.RUNNING) }
 
-        try {
-            YoutubeDL.getInstance().execute(request, job.id) { progress, _, line ->
-                itemRegex.find(line)?.let {
-                    index = it.groupValues[1].toInt()
-                    total = it.groupValues[2].toInt()
+                    val p = progress.coerceIn(0f, 100f)
+                    val overall = if (total > 1 && index > 0) ((index - 1) + p / 100f) / total * 100f else p
+                    update(job.id) {
+                        it.copy(progress = overall.coerceAtMost(99f), item = if (total > 1) "$index/$total" else "")
+                    }
+                    val now = System.currentTimeMillis()
+                    if (now - lastEmit > 500) {
+                        lastEmit = now
+                        current(job.id)?.let(onProgress)
+                    }
                 }
-                destRegex.find(line)?.let { m ->
-                    val title = File(m.groupValues[1]).nameWithoutExtension
-                    update(job.id) { it.copy(title = title) }
-                }
-                if (line.startsWith("[ExtractAudio]")) update(job.id) { it.copy(status = Status.CONVERTING) }
-                else if (line.startsWith("[download]") && progress > 0) update(job.id) { it.copy(status = Status.RUNNING) }
+            } catch (e: YoutubeDL.CanceledException) {
+                canceled = true
+            } catch (e: YoutubeDLException) {
+                error = lastError(e.message)
+            } catch (e: InterruptedException) {
+                canceled = true
+            } catch (e: Throwable) {
+                error = e.message ?: e.toString()
+            }
+            return !canceled
+        }
 
-                val p = progress.coerceIn(0f, 100f)
-                val overall = if (total > 1 && index > 0) ((index - 1) + p / 100f) / total * 100f else p
-                update(job.id) {
-                    it.copy(progress = overall.coerceAtMost(99f), item = if (total > 1) "$index/$total" else "")
-                }
-                val now = System.currentTimeMillis()
-                if (now - lastEmit > 500) {
-                    lastEmit = now
-                    current(job.id)?.let(onProgress)
+        fun mp3Count() = dir.listFiles { f -> f.extension.equals("mp3", ignoreCase = true) }?.size ?: 0
+
+        if (!job.trimSilence) {
+            exec(request(trim = false, matchFilter = null))
+        } else {
+            // piesele normale (sub 15 min): tăiem liniștea de la început și sfârșit;
+            // mixurile lungi le lăsăm netăiate (filtrul ține toată piesa în memorie)
+            if (exec(request(trim = true, matchFilter = "duration < $TRIM_MAX_SECONDS"))) {
+                if (job.playlist || mp3Count() == 0) {
+                    val firstError = error
+                    error = ""
+                    exec(request(trim = false, matchFilter = "duration >=? $TRIM_MAX_SECONDS"))
+                    // dacă tăierea a eșuat (ex. memorie), mai încercăm o dată fără ea
+                    if (!canceled && mp3Count() == 0 && (firstError.isNotBlank() || error.isNotBlank())) {
+                        error = ""
+                        exec(request(trim = false, matchFilter = null))
+                    }
+                    if (error.isBlank()) error = if (mp3Count() == 0) firstError else ""
                 }
             }
-        } catch (e: YoutubeDL.CanceledException) {
-            canceled = true
-        } catch (e: YoutubeDLException) {
-            error = lastError(e.message)
-        } catch (e: InterruptedException) {
-            canceled = true
-        } catch (e: Throwable) {
-            error = e.message ?: e.toString()
         }
 
         // salvăm tot ce s-a descărcat, chiar dacă unele piese din playlist au eșuat

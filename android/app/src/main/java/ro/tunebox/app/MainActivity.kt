@@ -865,6 +865,8 @@ class MainActivity : AppCompatActivity() {
             renderDriveState()
         }
         b.keepLocal.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("keep_local", on).apply() }
+        b.trimSilence.isChecked = prefs.getBoolean("trim_silence", true)
+        b.trimSilence.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("trim_silence", on).apply() }
         renderFolderBtn()
         b.folderBtn.setOnClickListener {
             pickFolder("Salvează în folderul", prefs.getString("dl_folder", "") ?: "") { f ->
@@ -945,7 +947,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         val folder = prefs.getString("dl_folder", "") ?: ""
-        Downloader.enqueue(links, quality(b.quality.checkedButtonId), b.playlist.isChecked, toDrive, keepLocal, folder)
+        Downloader.enqueue(
+            links, quality(b.quality.checkedButtonId), b.playlist.isChecked, toDrive, keepLocal, folder,
+            b.trimSilence.isChecked,
+        )
         b.urls.setText("")
         DownloadService.start(this)
     }

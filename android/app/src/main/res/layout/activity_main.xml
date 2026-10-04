@@ -494,6 +494,14 @@
                         android:text="Păstrează și pe telefon\nO copie în Music/TuneBox, pentru ascultat fără internet"
                         android:textColor="@color/text" />
 
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/trimSilence"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Taie liniștea de la început și sfârșit\nPiesa următoare pornește imediat, fără pauză"
+                        android:textColor="@color/text" />
+
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/download"
                         android:layout_width="match_parent"

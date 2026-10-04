@@ -1,4 +1,2 @@
-• Foldere: la descărcare alegi în ce folder se salvează piesa (în Drive și pe telefon) sau creezi unul nou
-• În Muzică, folderele apar ca butoane sus — „Redă tot” redă doar folderul ales, ca un playlist
-• Mută orice piesă în alt folder din meniul ⋮
-• Sincronizarea păstrează folderele (Music/TuneBox/Rock → Drive/TuneBox/Rock)
+• Fără pauze între piese: la descărcare se taie liniștea de la începutul și sfârșitul piesei (pauzele din mijloc rămân)
+• Opțiunea „Taie liniștea” e în tabul Descarcă și e pornită implicit
