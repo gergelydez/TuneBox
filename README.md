@@ -14,7 +14,25 @@ Folosește-o pentru conținut pe care ai dreptul să-l descarci.
 
 ---
 
-## 📱 Pe telefon Android — totul pe telefon, fără calculator
+## 📲 Aplicația Android (cea mai simplă variantă)
+
+O aplicație normală: o descarci, o instalezi și merge. Fără calculator, fără server, fără Termux.
+
+1. Pe telefon, deschide **[TuneBox.apk](https://github.com/gergelydez/TuneBox/releases/download/android/TuneBox.apk)** și descarcă fișierul.
+2. Deschide fișierul descărcat. Android te întreabă dacă permiți instalarea din browser: **Setări → Permite din această sursă**, apoi **Instalează**.
+3. Deschide **TuneBox**. Lipești un link (sau din YouTube: **Distribuie → TuneBox**), alegi calitatea și apeși **Descarcă MP3**.
+
+- Piesele ajung în **Music/TuneBox** și apar în orice player de muzică.
+- Descărcarea continuă și dacă ieși din aplicație (vezi progresul în notificări).
+- yt-dlp se actualizează singur la câteva zile; din meniul ⋮ îl poți actualiza manual dacă descărcările nu mai merg.
+- Versiune nouă a aplicației: meniul ⋮ → **Versiune nouă a aplicației**, descarci din nou APK-ul și îl instalezi peste.
+- Dacă `TuneBox.apk` nu se instalează pe un telefon foarte vechi, încearcă [TuneBox-32bit.apk](https://github.com/gergelydez/TuneBox/releases/download/android/TuneBox-32bit.apk).
+
+Codul aplicației e în folderul `android/`; APK-ul se construiește automat pe GitHub la fiecare modificare.
+
+---
+
+## 📱 Varianta Termux (aplicația web, rulată pe telefon)
 
 Serverul rulează chiar pe telefon, în **Termux**. Piesele ajung în folderul **Music/TuneBox** și apar în orice player de muzică.
 
