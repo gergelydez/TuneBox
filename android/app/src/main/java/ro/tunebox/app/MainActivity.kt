@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.View
@@ -38,6 +39,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -67,6 +69,8 @@ class MainActivity : AppCompatActivity() {
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
     private var seeking = false
+    private var pendingUpdate: UpdateInfo? = null
+    private var updating = false
 
     private val qualityIds by lazy { mapOf(128 to b.q128.id, 192 to b.q192.id, 256 to b.q256.id, 320 to b.q320.id) }
 
@@ -357,6 +361,18 @@ class MainActivity : AppCompatActivity() {
         handler.post(tick)
         reloadLibrary()
         renderJobs(Downloader.jobs.value)
+        if (Updater.dueForCheck(this)) checkForUpdate(manual = false)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // revenit din setarea „Permite instalarea”: continuăm actualizarea
+        pendingUpdate?.let { info ->
+            if (canInstall()) {
+                pendingUpdate = null
+                startUpdate(info, quiet = false)
+            }
+        }
     }
 
     override fun onStop() {
@@ -700,18 +716,105 @@ class MainActivity : AppCompatActivity() {
 
     private fun showMenu(anchor: View) {
         val menu = PopupMenu(this, anchor)
-        menu.menu.add(0, 1, 0, "Actualizează yt-dlp")
-        menu.menu.add(0, 2, 1, "Versiune nouă a aplicației")
-        menu.menu.add(0, 3, 2, "Despre")
+        menu.menu.add(0, 2, 0, "Caută actualizări")
+        menu.menu.add(0, 4, 1, "Actualizare automată").apply {
+            isCheckable = true
+            isChecked = Updater.autoEnabled(this@MainActivity)
+        }
+        menu.menu.add(0, 1, 2, "Actualizează yt-dlp")
+        menu.menu.add(0, 3, 3, "Despre")
         menu.setOnMenuItemClickListener {
             when (it.itemId) {
                 1 -> updateYtDlp()
-                2 -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(RELEASES_URL)))
+                2 -> checkForUpdate(manual = true)
                 3 -> about()
+                4 -> {
+                    val on = !Updater.autoEnabled(this)
+                    Updater.setAuto(this, on)
+                    toast(if (on) "Actualizare automată pornită" else "Actualizare automată oprită")
+                }
             }
             true
         }
         menu.show()
+    }
+
+    // ================= Actualizarea aplicației =================
+
+    private fun checkForUpdate(manual: Boolean) {
+        if (updating) return
+        if (manual) toast("Caut actualizări…")
+        lifecycleScope.launch {
+            val res = withContext(Dispatchers.IO) { runCatching { Updater.check(this@MainActivity) } }
+            val info = res.getOrNull()
+            when {
+                res.isFailure -> if (manual) toast(res.exceptionOrNull()?.message ?: "Nu am putut verifica actualizările")
+                info == null -> if (manual) toast("Ai ultima versiune ✓")
+                // automat: doar dacă nu ascultă muzică acum (instalarea repornește aplicația)
+                !manual && Updater.autoEnabled(this@MainActivity) && controller?.isPlaying != true && canInstall() ->
+                    startUpdate(info, quiet = true)
+                else -> showUpdateDialog(info)
+            }
+        }
+    }
+
+    private fun showUpdateDialog(info: UpdateInfo) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Versiune nouă: ${info.name}")
+            .setMessage(info.notes.ifBlank { "Este disponibilă o versiune nouă a aplicației." })
+            .setNegativeButton("Mai târziu", null)
+            .setPositiveButton("Actualizează") { _, _ -> startUpdate(info, quiet = false) }
+            .show()
+    }
+
+    private fun canInstall() = Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()
+
+    private fun startUpdate(info: UpdateInfo, quiet: Boolean) {
+        if (updating) return
+        if (!canInstall()) {
+            // o singură dată: Android cere voie ca TuneBox să instaleze actualizări
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Permite actualizările")
+                .setMessage("Ca TuneBox să se poată actualiza singur, activează „Permite din această sursă” în pagina care se deschide, apoi revino în aplicație.")
+                .setNegativeButton("Anulează", null)
+                .setPositiveButton("Deschide setarea") { _, _ ->
+                    pendingUpdate = info
+                    runCatching {
+                        startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                    }
+                }
+                .show()
+            return
+        }
+        updating = true
+        val bar = LinearProgressIndicator(this).apply {
+            max = 100
+            isIndeterminate = true
+            val p = (24 * resources.displayMetrics.density).toInt()
+            setPadding(p, p / 2, p, 0)
+        }
+        val dialog = if (quiet) null else MaterialAlertDialogBuilder(this)
+            .setTitle("Se descarcă ${info.name}…")
+            .setView(bar)
+            .setCancelable(false)
+            .show()
+        if (quiet) toast("Se descarcă actualizarea TuneBox ${info.name}…")
+        lifecycleScope.launch {
+            val res = withContext(Dispatchers.IO) {
+                runCatching {
+                    val apk = Updater.download(this@MainActivity, info) { p ->
+                        runOnUiThread {
+                            bar.isIndeterminate = false
+                            bar.setProgressCompat(p, true)
+                        }
+                    }
+                    Updater.install(this@MainActivity, apk)
+                }
+            }
+            dialog?.dismiss()
+            updating = false
+            res.onFailure { toast(it.message ?: "Actualizarea a eșuat") }
+        }
     }
 
     private fun updateYtDlp() {
@@ -764,7 +867,4 @@ class MainActivity : AppCompatActivity() {
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
 
-    companion object {
-        const val RELEASES_URL = "https://github.com/gergelydez/TuneBox/releases/tag/android"
-    }
 }
