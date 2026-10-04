@@ -1,10 +1,17 @@
 import { createJob } from "@/lib/jobs";
+import { ON_VERCEL } from "@/lib/config";
 
 export const runtime = "nodejs";
 
 const QUALITIES = ["128", "192", "256", "320"];
 
 export async function POST(req) {
+  if (ON_VERCEL) {
+    return Response.json(
+      { error: "Pe Vercel descărcarea nu funcționează (lipsesc yt-dlp și ffmpeg). Rulează aplicația pe calculatorul tău sau cu Docker." },
+      { status: 501 }
+    );
+  }
   const body = await req.json().catch(() => ({}));
   const urls = String(body.urls || "")
     .split(/\s+/)
