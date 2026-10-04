@@ -42,7 +42,7 @@ Google cere ca aplicația să fie înregistrată într-un proiect Google Cloud a
    La **Audience** apasă **Publish app** (aplicația cere doar acces la fișierele create de ea, deci nu e nevoie de verificare de la Google).
 4. **Credentials → Create credentials → OAuth client ID** (sau **Clients → Create client**) → tip **Android**:
    - **Package name:** `ro.tunebox.app`
-   - **SHA-1:** `24:2A:7D:CD:AC:2C:48:12:27:F4:38:07:75:7F:0E:D7:0F:E0:31:6E`
+   - **SHA-1:** `A2:99:91:58:79:B9:6C:41:DE:BC:18:6C:86:86:29:25:A8:2E:25:F3`
      (o găsești și în aplicație: meniul ⋮ → **Despre** → **Copiază SHA-1**)
    - **Create**. Nu trebuie copiat nimic în aplicație.
 5. În TuneBox apasă **Conectează Drive** (sus) și alege contul. Gata.

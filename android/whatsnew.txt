@@ -1,2 +1,2 @@
+• Aplicația e semnată acum cu o cheie secretă, pe care o ai doar tu
 • Actualizări automate: aplicația își descarcă și instalează singură versiunile noi
-• Meniul ⋮ → „Caută actualizări” și „Actualizare automată”

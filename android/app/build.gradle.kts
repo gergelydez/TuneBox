@@ -18,20 +18,24 @@ android {
         versionName = "1.0.$buildNumber"
     }
 
+    // Cheia de semnare e secretă: vine din secretele GitHub (vezi .github/workflows/android-apk.yml).
+    // Fără ea se construiește doar varianta de test (debug), nu una care se poate publica.
+    val keystorePath = System.getenv("KEYSTORE_FILE")
     signingConfigs {
-        create("release") {
-            // cheie proprie din secretele GitHub dacă există, altfel cea din repo
-            storeFile = file(System.getenv("KEYSTORE_FILE") ?: "tunebox.keystore")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "tunebox"
-            keyAlias = System.getenv("KEY_ALIAS") ?: "tunebox"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: "tunebox"
+        if (keystorePath != null) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 
