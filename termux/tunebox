@@ -1,0 +1,84 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# TuneBox pe Android (Termux)
+#   tunebox            pornește (dacă nu merge deja) și deschide aplicația
+#   tunebox start      pornește serverul în fundal
+#   tunebox stop       oprește serverul
+#   tunebox restart    repornește
+#   tunebox status     spune dacă merge
+#   tunebox update     actualizează aplicația și yt-dlp
+#   tunebox log        ultimele mesaje ale serverului
+
+DIR="$HOME/tunebox"
+APP="$DIR/app"
+CONF="$DIR/config.env"
+LOG="$DIR/server.log"
+PIDF="$DIR/server.pid"
+REPO="gergelydez/TuneBox"
+PKG_URL="https://github.com/$REPO/releases/download/termux/tunebox-app.tar.gz"
+
+[ -f "$CONF" ] && { set -a; . "$CONF"; set +a; }
+PORT="${PORT:-3000}"
+URL="http://localhost:$PORT"
+
+running() { curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$PORT/manifest.webmanifest"; }
+
+start() {
+  if running; then return 0; fi
+  [ -f "$APP/server.js" ] || { echo "Aplicația nu e instalată. Rulează install.sh."; exit 1; }
+  mkdir -p "${DOWNLOAD_DIR:-$DIR/downloads}" "${DATA_DIR:-$DIR/data}"
+  # nu lăsăm Android să oprească serverul cât timp e pornit
+  termux-wake-lock 2>/dev/null
+  cd "$APP" || exit 1
+  HOSTNAME="${HOST:-127.0.0.1}" PORT="$PORT" NODE_ENV=production \
+    nohup node server.js >"$LOG" 2>&1 &
+  echo $! >"$PIDF"
+  for _ in $(seq 1 40); do
+    running && { echo "TuneBox pornit: $URL"; return 0; }
+    sleep 0.5
+  done
+  echo "Serverul nu a pornit. Ultimele mesaje:"; tail -n 20 "$LOG"; exit 1
+}
+
+stop() {
+  [ -f "$PIDF" ] && kill "$(cat "$PIDF")" 2>/dev/null
+  rm -f "$PIDF"
+  for _ in $(seq 1 20); do running || break; sleep 0.5; done
+  termux-wake-unlock 2>/dev/null
+  echo "TuneBox oprit."
+}
+
+open_app() {
+  start || exit 1
+  termux-open-url "${1:-$URL}"
+}
+
+update() {
+  echo "==> Actualizez yt-dlp"
+  pip install -U --quiet yt-dlp yt-dlp-ejs mutagen
+  echo "==> Descarc ultima versiune a aplicației"
+  tmp="$(mktemp -d)"
+  curl -fL --progress-bar "$PKG_URL" -o "$tmp/app.tar.gz" || { echo "Descărcarea a eșuat."; exit 1; }
+  tar -xzf "$tmp/app.tar.gz" -C "$tmp"
+  local was_running=0; running && was_running=1
+  [ $was_running = 1 ] && stop
+  rm -rf "$APP.old"; [ -d "$APP" ] && mv "$APP" "$APP.old"
+  mv "$tmp/tunebox" "$APP" && rm -rf "$APP.old" "$tmp"
+  echo "Versiune: $(cat "$APP/VERSION" 2>/dev/null)"
+  [ $was_running = 1 ] && start
+  return 0
+}
+
+case "${1:-open}" in
+  open) open_app ;;
+  start) start ;;
+  stop) stop ;;
+  restart) stop; sleep 1; start ;;
+  status) running && echo "Pornit: $URL" || echo "Oprit." ;;
+  update) update ;;
+  log) tail -n "${2:-50}" "$LOG" ;;
+  share)
+    # apelat de termux-url-opener când partajezi un link către Termux
+    open_app "$URL/?auto=1&url=$(printf '%s' "$2" | jq -sRr @uri 2>/dev/null || printf '%s' "$2")"
+    ;;
+  *) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' ;;
+esac

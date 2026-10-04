@@ -14,6 +14,46 @@ Folosește-o pentru conținut pe care ai dreptul să-l descarci.
 
 ---
 
+## 📱 Pe telefon Android — totul pe telefon, fără calculator
+
+Serverul rulează chiar pe telefon, în **Termux**. Piesele ajung în folderul **Music/TuneBox** și apar în orice player de muzică.
+
+**1. Instalează din [F-Droid](https://f-droid.org/)** (nu din Play Store — acolo versiunile nu se potrivesc între ele):
+- **Termux** — obligatoriu
+- **Termux:Widget** — pentru iconița de pe ecranul principal
+- **Termux:API** — ca piesele să apară imediat în player (opțional)
+- **Termux:Boot** — ca aplicația să pornească singură după repornirea telefonului (opțional)
+
+**2. Deschide Termux și lipește comanda:**
+
+```bash
+curl -fsSLo install.sh https://raw.githubusercontent.com/gergelydez/TuneBox/main/termux/install.sh && bash install.sh
+```
+
+Durează câteva minute. Când ești întrebat de acces la fișiere, apasă **Permite**. La final aplicația se deschide în browser.
+
+**3. Iconița pe ecran:** ține apăsat pe ecranul principal → **Widgets** → **Termux:Widget** → alege **TuneBox**.
+Apăsarea pe ea pornește serverul (dacă nu merge deja) și deschide aplicația.
+Opțional, în Chrome: meniu ⋮ → **Adaugă pe ecranul principal**, ca să se deschidă fără bara browserului (serverul trebuie să fie pornit).
+
+**4. Direct din YouTube:** la un videoclip apasă **Distribuie → Termux**. Aplicația se deschide și descărcarea pornește singură.
+
+### Comenzi utile în Termux
+
+| Comandă | Ce face |
+|---|---|
+| `tunebox` | pornește și deschide aplicația |
+| `tunebox stop` | oprește serverul (economisește bateria) |
+| `tunebox update` | actualizează aplicația și yt-dlp — rulează-l când descărcările nu mai merg |
+| `tunebox log` | arată erorile serverului |
+
+Setările (parolă, folder, Google Drive) sunt în `~/tunebox/config.env`; după ce le schimbi, rulează `tunebox restart`.
+Google Drive merge direct de pe telefon: la redirect URI în Google pune `http://localhost:3000/api/drive/callback`.
+
+Cât timp serverul e pornit, Termux arată o notificare și ține telefonul „treaz”; dacă Android tot oprește Termux, scoate-l din optimizarea bateriei (Setări → Aplicații → Termux → Baterie → Fără restricții).
+
+---
+
 ## 1. Pornire rapidă pe calculatorul tău
 
 **Ai nevoie de:** Node.js 20+ , yt-dlp și ffmpeg.

@@ -1,0 +1,41 @@
+# Construiește pachetul pentru Android (Termux) și îl publică în release-ul „termux”.
+# Telefonul îl descarcă de la: releases/download/termux/tunebox-app.tar.gz
+name: Pachet Android
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: termux-release
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: scripts/package.sh
+
+      - name: Publică în release-ul „termux”
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view termux >/dev/null 2>&1; then
+            gh release create termux --title "TuneBox pentru Android" \
+              --notes "Pachetul folosit de termux/install.sh și de comanda \`tunebox update\`. Se actualizează automat la fiecare modificare."
+          fi
+          gh release upload termux dist/tunebox-app.tar.gz --clobber

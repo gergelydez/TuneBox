@@ -50,6 +50,8 @@ export default function Home() {
   const [uploading, setUploading] = useState({});
   const toastTimer = useRef();
   const prevActive = useRef(0);
+  const autoStart = useRef(false);
+  const [driveReady, setDriveReady] = useState(false);
 
   const say = useCallback((msg) => {
     setToast(msg);
@@ -58,7 +60,10 @@ export default function Home() {
   }, []);
 
   const loadFiles = useCallback(() => api("/api/files").then((d) => setFiles(d.files)).catch(() => {}), []);
-  const loadDrive = useCallback(() => api("/api/drive/status").then(setDrive).catch(() => {}), []);
+  const loadDrive = useCallback(
+    () => api("/api/drive/status").then(setDrive).catch(() => {}).finally(() => setDriveReady(true)),
+    []
+  );
 
   // Setări salvate pe dispozitiv + link primit prin „Partajează”
   useEffect(() => {
@@ -71,6 +76,8 @@ export default function Home() {
     const p = new URLSearchParams(window.location.search);
     const shared = extractLinks([p.get("url"), p.get("text"), p.get("title")].join(" "));
     if (shared) setUrls(shared);
+    // ?auto=1 (din „Partajează → Termux”): pornim descărcarea fără alt pas
+    if (shared && p.get("auto") === "1") autoStart.current = true;
 
     const d = p.get("drive");
     if (d) say(d === "ok" ? "Google Drive conectat ✓" : `Drive: ${d}`);
@@ -109,6 +116,14 @@ export default function Home() {
       clearTimeout(t);
     };
   }, [loadFiles]);
+
+  useEffect(() => {
+    if (autoStart.current && driveReady && urls.trim()) {
+      autoStart.current = false;
+      start();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urls, driveReady]);
 
   async function paste() {
     try {
