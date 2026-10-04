@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>TuneBox — muzica ta, în buzunar și în Google Drive</title>
+  <meta name="description" content="TuneBox descarcă audio în MP3 direct pe telefon, îl salvează în Google Drive-ul tău și îl redă ca un player de muzică, de pe orice telefon.">
+  <meta name="theme-color" content="#e5432d">
+  <meta property="og:title" content="TuneBox">
+  <meta property="og:description" content="Descarcă MP3, păstrează-l în Google Drive, ascultă-l de pe orice telefon.">
+  <meta property="og:image" content="https://gergelydez.github.io/TuneBox/icon-512.png">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="wrap nav">
+    <a class="logo" href="./"><img src="icon.svg" alt=""> TuneBox</a>
+    <nav class="nav-links">
+      <a href="#functii">Funcții</a>
+      <a href="#instalare">Instalare</a>
+      <a href="#intrebari">Întrebări</a>
+      <a href="https://github.com/gergelydez/TuneBox">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="wrap hero">
+      <div>
+        <span class="eyebrow">♪ Gratuit · fără reclame · open-source</span>
+        <h1>Muzica ta, <em>oriunde</em> ești.</h1>
+        <p class="lead">TuneBox descarcă audio în MP3 direct pe telefon, îl păstrează în Google Drive-ul tău și îl redă ca un player adevărat — de pe orice telefon pe care te conectezi.</p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/gergelydez/TuneBox/releases/download/android/TuneBox.apk">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+            Descarcă pentru Android
+          </a>
+          <a class="btn ghost" href="#instalare">Cum se instalează</a>
+        </div>
+        <p class="small">Android 7 sau mai nou · se actualizează singură</p>
+      </div>
+
+      <div class="phone" aria-hidden="true">
+        <div class="ph-head"><img src="icon.svg" alt=""> TuneBox</div>
+        <div class="ph-tabs"><span class="on">Google Drive</span><span>Pe telefon</span></div>
+        <div>
+          <div class="ph-row"><div class="ph-art"></div><div class="ph-lines"><i></i><i></i></div></div>
+          <div class="ph-row playing"><div class="ph-art"></div><div class="ph-lines"><i></i><i></i></div></div>
+          <div class="ph-row"><div class="ph-art"></div><div class="ph-lines"><i></i><i></i></div></div>
+          <div class="ph-row"><div class="ph-art"></div><div class="ph-lines"><i></i><i></i></div></div>
+          <div class="ph-row"><div class="ph-art"></div><div class="ph-lines"><i></i><i></i></div></div>
+          <div class="ph-row"><div class="ph-art"></div><div class="ph-lines"><i></i><i></i></div></div>
+        </div>
+        <div class="ph-player">
+          <div class="ph-bar"><b></b></div>
+          <div class="ph-ctrl">
+            <div class="ph-art"></div>
+            <div class="ph-lines"><i></i><i></i></div>
+            <div class="ph-play"><svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section id="functii">
+      <div class="wrap">
+        <h2 class="section-title">Tot ce-ți trebuie, într-o singură aplicație</h2>
+        <p class="section-lead">Fără calculator, fără server, fără site-uri pline de reclame. Totul se întâmplă pe telefonul tău și în contul tău Google.</p>
+        <div class="grid">
+          <div class="card">
+            <div class="icon"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></div>
+            <h3>Descarcă în MP3</h3>
+            <p>Lipești un link sau apeși „Distribuie → TuneBox” din YouTube. Alegi calitatea, de la 128 la 320 kbps, sau tot playlistul.</p>
+          </div>
+          <div class="card">
+            <div class="icon"><svg viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg></div>
+            <h3>Salvat în Google Drive</h3>
+            <p>Piesele ajung în folderul TuneBox din Drive-ul tău. Nu mai ocupă loc pe telefon și nu se pierd niciodată.</p>
+          </div>
+          <div class="card">
+            <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></div>
+            <h3>Un player adevărat</h3>
+            <p>Redă tot, amestecă, repetă, caută. Merge cu ecranul stins, din notificări și de pe ecranul de blocare.</p>
+          </div>
+          <div class="card">
+            <div class="icon"><svg viewBox="0 0 24 24"><path d="M17 1.01 7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg></div>
+            <h3>Pe orice telefon</h3>
+            <p>Instalezi TuneBox pe alt telefon, te conectezi cu același cont și ai instant toată biblioteca.</p>
+          </div>
+          <div class="card">
+            <div class="icon"><svg viewBox="0 0 24 24"><path d="M2 20h20v-4H2v4zm2-3h2v2H4v-2zM2 4v4h20V4H2zm4 3H4V5h2v2zm-4 7h20v-4H2v4zm2-3h2v2H4v-2z"/></svg></div>
+            <h3>Ascultă și offline</h3>
+            <p>Ce ai ascultat o dată rămâne în memorie. Poți salva orice piesă și pe telefon, pentru drumuri fără semnal.</p>
+          </div>
+          <div class="card">
+            <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg></div>
+            <h3>Mereu la zi</h3>
+            <p>Aplicația și motorul de descărcare se actualizează singure. Nu trebuie să cauți versiuni noi.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="instalare">
+      <div class="wrap split">
+        <div>
+          <h2 class="section-title">Instalare în 3 pași</h2>
+          <p class="section-lead">TuneBox nu e în Magazin Play, așa că Android îți cere o dată permisiunea să instalezi aplicația din browser. E normal.</p>
+          <a class="btn primary" href="https://github.com/gergelydez/TuneBox/releases/download/android/TuneBox.apk">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+            Descarcă TuneBox.apk
+          </a>
+          <p class="small">Telefon foarte vechi (32 de biți)? <a href="https://github.com/gergelydez/TuneBox/releases/download/android/TuneBox-32bit.apk">Varianta 32-bit</a></p>
+        </div>
+        <ol class="steps">
+          <li><strong>Descarcă APK-ul</strong><span>Apasă butonul de pe telefon. Fișierul are aproximativ 60 MB.</span></li>
+          <li><strong>Deschide-l și instalează</strong><span>Dacă Android întreabă, alege „Setări → Permite din această sursă”, apoi „Instalează”.</span></li>
+          <li><strong>Conectează Google Drive</strong><span>Deschide TuneBox, apasă „Conectează Drive” sus și alege contul. Gata — începe să descarci.</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="intrebari">
+      <div class="wrap split">
+        <div>
+          <h2 class="section-title">Întrebări frecvente</h2>
+          <p class="section-lead">Nu găsești răspunsul? <a href="https://github.com/gergelydez/TuneBox/issues">Scrie-ne pe GitHub</a>.</p>
+        </div>
+        <div>
+          <details>
+            <summary>Costă ceva?</summary>
+            <p>Nu. TuneBox e gratuit, fără reclame și fără abonamente. Piesele stau în spațiul gratuit din Google Drive (15 GB, cam 3.000 de piese).</p>
+          </details>
+          <details>
+            <summary>Ce poate vedea aplicația din Google Drive-ul meu?</summary>
+            <p>Doar fișierele create de ea: folderul TuneBox și piesele încărcate de aplicație. Nu vede pozele, documentele sau alte fișiere ale tale. Detalii în <a href="privacy.html">Politica de confidențialitate</a>.</p>
+          </details>
+          <details>
+            <summary>De ce nu e în Magazin Play?</summary>
+            <p>Google nu acceptă în Magazin Play aplicații care descarcă audio de pe YouTube. De aceea TuneBox se instalează direct, ca alte aplicații open-source de acest fel.</p>
+          </details>
+          <details>
+            <summary>Merge pe iPhone?</summary>
+            <p>Nu. iOS nu permite aplicații care descarcă audio în acest fel. TuneBox este doar pentru Android.</p>
+          </details>
+          <details>
+            <summary>Descărcările nu mai merg. Ce fac?</summary>
+            <p>YouTube se schimbă des. Deschide meniul ⋮ → „Actualizează yt-dlp”. De obicei aplicația face asta singură la câteva zile.</p>
+          </details>
+          <details>
+            <summary>E legal?</summary>
+            <p>Folosește TuneBox doar pentru conținut pe care ai dreptul să-l descarci — de exemplu conținut propriu, cu licență liberă sau cu acordul autorului. Vezi <a href="terms.html">Termenii de utilizare</a>.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="band">
+          <div>
+            <h2>Gata să-ți iei muzica peste tot?</h2>
+            <p>Descarcă TuneBox și ai prima piesă în Drive în mai puțin de un minut.</p>
+          </div>
+          <a class="btn" href="https://github.com/gergelydez/TuneBox/releases/download/android/TuneBox.apk">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+            Descarcă pentru Android
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>© 2026 TuneBox · proiect open-source</span>
+      <nav>
+        <a href="privacy.html">Confidențialitate</a>
+        <a href="terms.html">Termeni</a>
+        <a href="https://github.com/gergelydez/TuneBox">GitHub</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

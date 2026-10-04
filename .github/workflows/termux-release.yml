@@ -5,7 +5,7 @@ name: Pachet Android
 on:
   push:
     branches: [main]
-    paths-ignore: ["**.md", "android/**", ".github/workflows/android-apk.yml"]
+    paths-ignore: ["**.md", "docs/**", "android/**", ".github/workflows/android-apk.yml"]
   workflow_dispatch:
 
 permissions:
