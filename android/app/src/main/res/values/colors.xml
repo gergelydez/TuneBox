@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#E5432D</color>
+    <color name="bg">#F6F4F1</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="text">#1D1B19</color>
+    <color name="muted">#77716B</color>
+    <color name="line">#E6E1DB</color>
+    <color name="ok">#1F8A4C</color>
+    <color name="err">#C62828</color>
+    <color name="warn">#B26A00</color>
+</resources>
