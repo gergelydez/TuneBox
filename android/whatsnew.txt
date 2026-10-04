@@ -1,2 +1,5 @@
-• Aplicația e semnată acum cu o cheie secretă, pe care o ai doar tu
-• Actualizări automate: aplicația își descarcă și instalează singură versiunile noi
+• Tabul „Pe telefon” arată acum toate piesele din Music/TuneBox, inclusiv cele puse de tine acolo
+• Sincronizare cu Google Drive: butonul „Sincronizează” urcă în Drive piesele care sunt doar pe telefon (sau automat, din meniul ⋮)
+• La fiecare piesă vezi dacă e în Drive, pe telefon sau în ambele
+• Ștergere de pe telefon, din Drive sau de peste tot, direct din aplicație
+• Merg și alte formate audio (m4a, ogg, flac…), nu doar MP3

@@ -1,13 +1,17 @@
 package ro.tunebox.app
 
 import android.content.ContentUris
+import android.Manifest
 import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.webkit.MimeTypeMap
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import java.io.File
 
@@ -30,6 +34,28 @@ data class Track(
 object Library {
     private const val FOLDER = "TuneBox"
     private val relativePath = "${Environment.DIRECTORY_MUSIC}/$FOLDER/"
+
+    private val audioExt = setOf("mp3", "m4a", "aac", "ogg", "opus", "flac", "wav", "wma")
+
+    /** Permisiunea de citire a muzicii (ca să vedem și piesele care nu au fost create de aplicație). */
+    val readPermission: String
+        get() = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
+
+    fun hasReadPermission(ctx: Context) =
+        ContextCompat.checkSelfPermission(ctx, readPermission) == PackageManager.PERMISSION_GRANTED
+
+    fun mimeOf(name: String): String =
+        MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase()) ?: "audio/mpeg"
+
+    /** Copie temporară a unei piese de pe telefon (pentru încărcare în Drive sau trimitere). */
+    fun copyToTemp(context: Context, track: Track, dir: File): File {
+        dir.mkdirs()
+        val f = File(dir, track.name)
+        val input = track.file?.inputStream() ?: context.contentResolver.openInputStream(track.uri)
+            ?: throw java.io.IOException("Nu pot citi piesa de pe telefon.")
+        input.use { i -> f.outputStream().use { i.copyTo(it) } }
+        return f
+    }
 
     private fun legacyDir() =
         File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), FOLDER)
@@ -77,9 +103,11 @@ object Library {
                 MediaStore.Audio.Media.DATE_ADDED,
             )
             val tracks = mutableListOf<Track>()
+            // fără permisiunea de citire, Android întoarce doar piesele create de aplicație
             context.contentResolver.query(
                 collection, projection,
-                "${MediaStore.Audio.Media.RELATIVE_PATH} = ?", arrayOf(relativePath),
+                "${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Audio.Media.MIME_TYPE} LIKE 'audio/%'",
+                arrayOf("$relativePath%"),
                 "${MediaStore.Audio.Media.DATE_ADDED} DESC",
             )?.use { c ->
                 val id = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
@@ -101,7 +129,7 @@ object Library {
             return tracks
         }
 
-        val files = legacyDir().listFiles { f -> f.extension.equals("mp3", true) } ?: return emptyList()
+        val files = legacyDir().walkTopDown().filter { it.isFile && it.extension.lowercase() in audioExt }.toList()
         return files.sortedByDescending { it.lastModified() }.map {
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", it)
             Track(
@@ -122,6 +150,7 @@ object Library {
             MediaScannerConnection.scanFile(context, arrayOf(f.absolutePath), null, null)
             return ok
         }
-        return runCatching { context.contentResolver.delete(track.uri, null, null) > 0 }.getOrDefault(false)
+        // pentru fișiere care nu sunt ale aplicației aruncă SecurityException → ecranul cere confirmarea Android
+        return context.contentResolver.delete(track.uri, null, null) > 0
     }
 }

@@ -250,6 +250,7 @@ object Drive {
     /** Încarcă un MP3 în folderul TuneBox (încărcare „resumable”). */
     fun upload(ctx: Context, file: File, name: String = file.name): Track {
         val folder = folderId(ctx)
+        val mime = Library.mimeOf(name)
         fun attempt(retry: Boolean): Track {
             val t = token(ctx)
             val init = URL("$UPLOAD/files?uploadType=resumable&fields=id,name,size,createdTime")
@@ -259,9 +260,9 @@ object Drive {
                 init.doOutput = true
                 init.setRequestProperty("Authorization", "Bearer $t")
                 init.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-                init.setRequestProperty("X-Upload-Content-Type", "audio/mpeg")
+                init.setRequestProperty("X-Upload-Content-Type", mime)
                 init.setRequestProperty("X-Upload-Content-Length", file.length().toString())
-                val meta = JSONObject().put("name", name).put("mimeType", "audio/mpeg")
+                val meta = JSONObject().put("name", name).put("mimeType", mime)
                     .put("parents", JSONArray().put(folder))
                 init.outputStream.use { it.write(meta.toString().toByteArray()) }
                 val code = init.responseCode
@@ -282,7 +283,7 @@ object Drive {
                 put.connectTimeout = 20_000
                 put.readTimeout = 120_000
                 put.setFixedLengthStreamingMode(file.length())
-                put.setRequestProperty("Content-Type", "audio/mpeg")
+                put.setRequestProperty("Content-Type", mime)
                 file.inputStream().use { input -> put.outputStream.use { input.copyTo(it) } }
                 val code = put.responseCode
                 val text = (if (code < 400) put.inputStream else put.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()

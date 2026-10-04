@@ -9,6 +9,11 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- ca aplicația să-și poată instala singură actualizările -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- ca să vadă toate piesele din Music/TuneBox, inclusiv cele puse din altă parte -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
     <!-- doar pe Android 9 și mai vechi e nevoie de permisiune ca să scriem în Music -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"

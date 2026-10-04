@@ -1,6 +1,7 @@
 package ro.tunebox.app
 
 import android.Manifest
+import android.app.RecoverableSecurityException
 import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Intent
@@ -11,6 +12,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
 import android.provider.Settings
 import android.text.format.DateUtils
 import android.view.LayoutInflater
@@ -134,6 +136,7 @@ class MainActivity : AppCompatActivity() {
             source = if (id == b.tabDrive.id) Source.DRIVE else Source.LOCAL
             prefs.edit().putString("source", if (source == Source.DRIVE) "drive" else "local").apply()
             renderLibrary()
+            if (source == Source.LOCAL) askReadOnce()
         }
         b.tracks.layoutManager = LinearLayoutManager(this)
         b.tracks.adapter = adapter
@@ -142,13 +145,55 @@ class MainActivity : AppCompatActivity() {
         b.shuffleAll.setOnClickListener { if (shown.isNotEmpty()) play(shown, shown.indices.random(), shuffle = true) }
         b.refresh.setColorSchemeColors(getColor(R.color.brand))
         b.refresh.setOnRefreshListener { reloadLibrary(userAction = true) }
+        b.permBtn.setOnClickListener { requestRead() }
+        b.syncBtn.setOnClickListener { syncNow() }
         driveTracks = Drive.loadCache(this)
+        if (source == Source.LOCAL) askReadOnce()
     }
+
+    // ---- permisiunea de a vedea toate piesele din folder ----
+
+    private val askRead = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) reloadLibrary() else renderLibrary()
+    }
+
+    private fun askReadOnce() {
+        if (Library.hasReadPermission(this) || prefs.getBoolean("asked_read", false)) return
+        prefs.edit().putBoolean("asked_read", true).apply()
+        askRead.launch(Library.readPermission)
+    }
+
+    private fun requestRead() {
+        val perm = Library.readPermission
+        if (prefs.getBoolean("asked_read", false) && !shouldShowRequestPermissionRationale(perm)) {
+            // Android nu mai arată fereastra: trimitem utilizatorul în setările aplicației
+            toast("Apasă Permisiuni → Muzică și audio → Permite")
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+        } else {
+            prefs.edit().putBoolean("asked_read", true).apply()
+            askRead.launch(perm)
+        }
+    }
+
+    // ---- bibliotecă ----
+
+    private var driveLoadedOk = false // lista din Drive a fost citită acum (nu doar din cache)
+    private var autoSyncDone = false
+    private var driveKeys: Set<String> = emptySet()
+    private var localKeys: Set<String> = emptySet()
 
     private fun normalize(s: String) =
         Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
 
+    private fun inDrive(t: Track) = t.source == Source.DRIVE || Sync.key(t.name) in driveKeys
+    private fun onPhone(t: Track) = t.source == Source.LOCAL || Sync.key(t.name) in localKeys
+    private fun driveTwin(t: Track) = driveTracks.firstOrNull { Sync.key(it.name) == Sync.key(t.name) }
+    private fun localTwin(t: Track) = localTracks.firstOrNull { Sync.key(it.name) == Sync.key(t.name) }
+    private fun unsynced() = localTracks.filter { Sync.key(it.name) !in driveKeys }
+
     private fun renderLibrary() {
+        driveKeys = driveTracks.map { Sync.key(it.name) }.toSet()
+        localKeys = localTracks.map { Sync.key(it.name) }.toSet()
         val isDrive = source == Source.DRIVE
         val needsConnect = isDrive && !Drive.connected
         val all = if (isDrive) driveTracks else localTracks
@@ -158,14 +203,51 @@ class MainActivity : AppCompatActivity() {
         b.driveConnect.visibility = if (needsConnect) View.VISIBLE else View.GONE
         b.search.visibility = if (needsConnect || all.isEmpty()) View.GONE else View.VISIBLE
         b.actions.visibility = if (needsConnect || shown.isEmpty()) View.GONE else View.VISIBLE
+        b.permBar.visibility = if (!isDrive && !Library.hasReadPermission(this)) View.VISIBLE else View.GONE
         b.trackCount.text = "${shown.size} ${if (shown.size == 1) "piesă" else "piese"}"
         b.libEmpty.visibility = if (!needsConnect && shown.isEmpty()) View.VISIBLE else View.GONE
         b.libEmpty.text = when {
             all.isEmpty() && isDrive -> "Încă nu ai piese în Drive.\nDescarcă ceva din tabul Descarcă."
-            all.isEmpty() -> "Nicio piesă pe telefon.\nPiesele păstrate pe telefon ajung în Music/TuneBox."
+            all.isEmpty() -> "Nicio piesă în Music/TuneBox.\nPiesele descărcate sau copiate acolo apar aici."
             else -> "Nicio piesă găsită."
         }
         adapter.submitList(shown)
+        adapter.notifyDataSetChanged() // indicatorii „în Drive / pe telefon” se pot schimba fără ca piesa să se schimbe
+        renderSync()
+    }
+
+    private fun renderSync() {
+        val s = Sync.state.value
+        val show = source == Source.LOCAL && Drive.connected && (driveLoadedOk || s.running)
+        b.syncBar.visibility = if (show) View.VISIBLE else View.GONE
+        if (!show) return
+        val missing = unsynced()
+        when {
+            s.running -> {
+                b.syncText.text = "Se încarcă în Drive ${s.done + 1}/${s.total}\n${s.current}"
+                b.syncBtn.visibility = View.GONE
+                b.syncIcon.setImageResource(R.drawable.ic_cloud_upload)
+            }
+            missing.isEmpty() -> {
+                b.syncText.text = "Toate piesele de pe telefon sunt și în Google Drive ✓"
+                b.syncBtn.visibility = View.GONE
+                b.syncIcon.setImageResource(R.drawable.ic_cloud)
+            }
+            else -> {
+                val n = missing.size
+                b.syncText.text = if (n == 1) "1 piesă e doar pe telefon" else "$n piese sunt doar pe telefon"
+                b.syncBtn.visibility = View.VISIBLE
+                b.syncIcon.setImageResource(R.drawable.ic_cloud_upload)
+            }
+        }
+    }
+
+    private fun syncNow() {
+        if (!Drive.connected) return connectDrive()
+        val missing = unsynced()
+        if (missing.isEmpty()) return toast("Totul e deja în Drive ✓")
+        Sync.upload(this, missing)
+        renderSync()
     }
 
     private fun reloadLibrary(userAction: Boolean = false) {
@@ -179,31 +261,42 @@ class MainActivity : AppCompatActivity() {
                 val res = withContext(Dispatchers.IO) { runCatching { Drive.list(this@MainActivity) } }
                 res.onSuccess {
                     driveTracks = it
+                    driveLoadedOk = true
                     withContext(Dispatchers.IO) { Drive.saveCache(this@MainActivity, it) }
                 }.onFailure {
                     if (userAction || driveTracks.isEmpty()) toast(it.message ?: "Nu am putut încărca lista din Drive")
                 }
                 renderLibrary()
+                // sincronizare automată: o dată pe pornire, doar cu lista proaspătă din Drive (ca să nu dublăm piese)
+                if (driveLoadedOk && !autoSyncDone && Sync.autoEnabled(this@MainActivity)) {
+                    autoSyncDone = true
+                    unsynced().takeIf { it.isNotEmpty() }?.let { Sync.upload(this@MainActivity, it) }
+                }
             }
             b.refresh.isRefreshing = false
         }
     }
 
+    // ---- acțiuni pe piesă ----
+
     private fun showTrackMenu(anchor: View, t: Track) {
+        val local = if (t.source == Source.LOCAL) t else localTwin(t)
+        val drive = if (t.source == Source.DRIVE) t else driveTwin(t)
         val menu = PopupMenu(this, anchor)
-        if (t.source == Source.DRIVE) {
-            menu.menu.add(0, 1, 0, "Salvează pe telefon")
-        } else if (Drive.connected) {
-            menu.menu.add(0, 2, 0, "Încarcă în Google Drive")
-        }
+        if (local == null && drive != null) menu.menu.add(0, 1, 0, "Salvează pe telefon")
+        if (drive == null && local != null && Drive.connected) menu.menu.add(0, 2, 0, "Încarcă în Google Drive")
         menu.menu.add(0, 3, 1, "Trimite")
-        menu.menu.add(0, 4, 2, if (t.source == Source.DRIVE) "Șterge din Drive" else "Șterge de pe telefon")
+        if (local != null) menu.menu.add(0, 4, 2, "Șterge de pe telefon")
+        if (drive != null) menu.menu.add(0, 5, 3, "Șterge din Google Drive")
+        if (local != null && drive != null) menu.menu.add(0, 6, 4, "Șterge de peste tot")
         menu.setOnMenuItemClickListener {
             when (it.itemId) {
-                1 -> saveToPhone(t)
-                2 -> uploadToDrive(t)
-                3 -> share(t)
-                4 -> confirmDelete(t)
+                1 -> drive?.let { d -> saveToPhone(d) }
+                2 -> local?.let { l -> uploadToDrive(l) }
+                3 -> share(local ?: t)
+                4 -> confirmDelete(t, local, null)
+                5 -> confirmDelete(t, null, drive)
+                6 -> confirmDelete(t, local, drive)
             }
             true
         }
@@ -212,10 +305,11 @@ class MainActivity : AppCompatActivity() {
 
     /** Fișier local temporar cu piesa (din Drive sau de pe telefon). */
     private fun tempCopy(t: Track): File {
-        val dir = File(cacheDir, "share").apply { mkdirs() }
+        val dir = File(cacheDir, "share")
+        if (t.source == Source.LOCAL) return Library.copyToTemp(this, t, dir)
+        dir.mkdirs()
         val f = File(dir, t.name)
-        if (t.source == Source.DRIVE) Drive.download(this, t.driveId!!, f)
-        else contentResolver.openInputStream(t.uri)!!.use { input -> f.outputStream().use { input.copyTo(it) } }
+        Drive.download(this, t.driveId!!, f)
         return f
     }
 
@@ -237,23 +331,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun uploadToDrive(t: Track) {
-        toast("Se încarcă în Drive…")
-        lifecycleScope.launch {
-            val res = withContext(Dispatchers.IO) {
-                runCatching {
-                    val f = tempCopy(t)
-                    try {
-                        Drive.upload(this@MainActivity, f)
-                    } finally {
-                        f.delete()
-                    }
-                }
-            }
-            res.fold({ toast("Încărcată în Google Drive ✓") }, { toast(it.message ?: "Eroare") })
-            Downloader.libraryChanged()
-        }
-    }
+    private fun uploadToDrive(t: Track) = Sync.upload(this, listOf(t)).also { renderSync() }
 
     private fun share(t: Track) {
         lifecycleScope.launch {
@@ -263,36 +341,76 @@ class MainActivity : AppCompatActivity() {
                     runCatching { FileProvider.getUriForFile(this@MainActivity, "$packageName.files", tempCopy(t)) }
                 }.getOrElse { return@launch toast(it.message ?: "Eroare") }
             }
-            val send = Intent(Intent.ACTION_SEND).setType("audio/mpeg")
+            val send = Intent(Intent.ACTION_SEND).setType(Library.mimeOf(t.name))
                 .putExtra(Intent.EXTRA_STREAM, uri)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             startActivity(Intent.createChooser(send, t.title))
         }
     }
 
-    private fun confirmDelete(t: Track) {
-        val fromDrive = t.source == Source.DRIVE
+    private fun confirmDelete(t: Track, local: Track?, drive: Track?) {
+        val title = when {
+            local != null && drive != null -> "Ștergi de peste tot?"
+            drive != null -> "Ștergi din Google Drive?"
+            else -> "Ștergi de pe telefon?"
+        }
+        val note = buildList {
+            if (drive != null) add("Din Drive ajunge în coș (o poți recupera 30 de zile).")
+            if (local != null && drive == null && inDrive(local)) add("Rămâne în Google Drive.")
+            if (drive != null && local == null && onPhone(drive)) add("Rămâne pe telefon.")
+        }.joinToString("\n")
         MaterialAlertDialogBuilder(this)
-            .setTitle(if (fromDrive) "Ștergi din Google Drive?" else "Ștergi de pe telefon?")
-            .setMessage(t.title + if (fromDrive) "\n\nAjunge în coșul din Drive (o poți recupera 30 de zile)." else "")
+            .setTitle(title)
+            .setMessage(t.title + if (note.isNotEmpty()) "\n\n$note" else "")
             .setNegativeButton("Nu", null)
             .setPositiveButton("Șterge") { _, _ ->
                 lifecycleScope.launch {
-                    val ok = withContext(Dispatchers.IO) {
-                        runCatching {
-                            if (fromDrive) Drive.trash(this@MainActivity, t.driveId!!).let { true }
-                            else Library.delete(this@MainActivity, t)
-                        }.getOrDefault(false)
+                    if (drive != null) {
+                        val ok = withContext(Dispatchers.IO) {
+                            runCatching { Drive.trash(this@MainActivity, drive.driveId!!) }.isSuccess
+                        }
+                        if (ok) {
+                            driveTracks = driveTracks.filterNot { it.id == drive.id }
+                            Drive.saveCache(this@MainActivity, driveTracks)
+                        } else {
+                            toast("Nu am putut șterge din Drive")
+                        }
                     }
-                    if (!ok) toast("Nu am putut șterge piesa")
-                    else if (fromDrive) {
-                        driveTracks = driveTracks.filterNot { it.id == t.id }
-                        Drive.saveCache(this@MainActivity, driveTracks)
-                    }
-                    reloadLibrary()
+                    if (local != null) deleteLocal(local) else reloadLibrary()
                 }
             }
             .show()
+    }
+
+    // Android cere confirmare pentru fișierele care nu au fost create de aplicație
+    private var afterSystemDelete: (() -> Unit)? = null
+    private val systemDelete = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
+        val next = afterSystemDelete
+        afterSystemDelete = null
+        if (res.resultCode == RESULT_OK) next?.invoke() else reloadLibrary()
+    }
+
+    private fun deleteLocal(t: Track) {
+        lifecycleScope.launch {
+            val res = withContext(Dispatchers.IO) { runCatching { Library.delete(this@MainActivity, t) } }
+            val e = res.exceptionOrNull()
+            when {
+                res.getOrNull() == true -> reloadLibrary()
+                e is SecurityException && Build.VERSION.SDK_INT >= 30 -> {
+                    val pi = MediaStore.createDeleteRequest(contentResolver, listOf(t.uri))
+                    afterSystemDelete = { reloadLibrary() } // Android a șters deja fișierul
+                    systemDelete.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+                }
+                Build.VERSION.SDK_INT >= 29 && e is RecoverableSecurityException -> {
+                    afterSystemDelete = { deleteLocal(t) } // acum avem voie: încercăm din nou
+                    systemDelete.launch(IntentSenderRequest.Builder(e.userAction.actionIntent.intentSender).build())
+                }
+                else -> {
+                    toast("Nu am putut șterge piesa de pe telefon")
+                    reloadLibrary()
+                }
+            }
+        }
     }
 
     private inner class TrackAdapter : ListAdapter<Track, TrackAdapter.VH>(object : DiffUtil.ItemCallback<Track>() {
@@ -317,9 +435,17 @@ class MainActivity : AppCompatActivity() {
             val active = t.id == playingId
             h.v.title.text = t.title
             h.v.title.setTextColor(getColor(if (active) R.color.brand else R.color.text))
+            // unde se află piesa: în Drive, pe telefon sau în ambele
+            val where = when {
+                !Drive.connected -> null
+                inDrive(t) && onPhone(t) -> "în Drive și pe telefon"
+                t.source == Source.LOCAL -> "doar pe telefon"
+                else -> null
+            }
             h.v.sub.text = listOfNotNull(
                 formatSize(t.size).takeIf { t.size > 0 },
                 DateUtils.getRelativeTimeSpanString(t.added * 1000).toString().takeIf { t.added > 0 },
+                where,
             ).joinToString(" · ")
             h.v.icon.setImageResource(if (active) R.drawable.ic_play else R.drawable.ic_music)
             h.v.icon.imageTintList = android.content.res.ColorStateList.valueOf(getColor(if (active) R.color.brand else R.color.muted))
@@ -423,7 +549,6 @@ class MainActivity : AppCompatActivity() {
             MediaItem.Builder()
                 .setMediaId(t.id)
                 .setUri(t.uri)
-                .setMimeType("audio/mpeg")
                 .setMediaMetadata(
                     MediaMetadata.Builder()
                         .setTitle(t.title)
@@ -650,6 +775,21 @@ class MainActivity : AppCompatActivity() {
                 launch { Downloader.jobs.sample(300).collect { renderJobs(it) } }
                 launch { Downloader.libraryVersion.collect { if (it > 0) reloadLibrary() } }
                 launch {
+                    var wasRunning = Sync.state.value.running
+                    Sync.state.collect { st ->
+                        renderSync()
+                        if (wasRunning && !st.running && st.total > 0) {
+                            toast(
+                                when {
+                                    st.failed == 0 -> "Sincronizare gata: ${st.uploaded} ${if (st.uploaded == 1) "piesă urcată" else "piese urcate"} în Drive ✓"
+                                    else -> "Urcate: ${st.uploaded}, eșuate: ${st.failed}. ${st.error}"
+                                }
+                            )
+                        }
+                        wasRunning = st.running
+                    }
+                }
+                launch {
                     Drive.state.collect {
                         renderDriveState()
                         renderLibrary()
@@ -721,13 +861,23 @@ class MainActivity : AppCompatActivity() {
             isCheckable = true
             isChecked = Updater.autoEnabled(this@MainActivity)
         }
-        menu.menu.add(0, 1, 2, "Actualizează yt-dlp")
-        menu.menu.add(0, 3, 3, "Despre")
+        menu.menu.add(0, 5, 2, "Sincronizare automată cu Drive").apply {
+            isCheckable = true
+            isChecked = Sync.autoEnabled(this@MainActivity)
+        }
+        menu.menu.add(0, 1, 3, "Actualizează yt-dlp")
+        menu.menu.add(0, 3, 4, "Despre")
         menu.setOnMenuItemClickListener {
             when (it.itemId) {
                 1 -> updateYtDlp()
                 2 -> checkForUpdate(manual = true)
                 3 -> about()
+                5 -> {
+                    val on = !Sync.autoEnabled(this)
+                    Sync.setAuto(this, on)
+                    toast(if (on) "Piesele noi de pe telefon vor urca singure în Drive" else "Sincronizare automată oprită")
+                    if (on && driveLoadedOk) unsynced().takeIf { l -> l.isNotEmpty() }?.let { l -> Sync.upload(this, l) }
+                }
                 4 -> {
                     val on = !Updater.autoEnabled(this)
                     Updater.setAuto(this, on)
