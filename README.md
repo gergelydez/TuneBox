@@ -20,13 +20,35 @@ O aplicație normală: o descarci, o instalezi și merge. Fără calculator, fă
 
 1. Pe telefon, deschide **[TuneBox.apk](https://github.com/gergelydez/TuneBox/releases/download/android/TuneBox.apk)** și descarcă fișierul.
 2. Deschide fișierul descărcat. Android te întreabă dacă permiți instalarea din browser: **Setări → Permite din această sursă**, apoi **Instalează**.
-3. Deschide **TuneBox**. Lipești un link (sau din YouTube: **Distribuie → TuneBox**), alegi calitatea și apeși **Descarcă MP3**.
+3. Deschide **TuneBox** → tabul **Descarcă**. Lipești un link (sau din YouTube: **Distribuie → TuneBox**), alegi calitatea și apeși **Descarcă MP3**.
+4. Tabul **Muzică** e player-ul: piesele din Google Drive sau de pe telefon, căutare, redă tot, amestecă, repetă.
 
-- Piesele ajung în **Music/TuneBox** și apar în orice player de muzică.
+- Fără Drive, piesele ajung în **Music/TuneBox** și apar în orice player de muzică.
 - Descărcarea continuă și dacă ieși din aplicație (vezi progresul în notificări).
 - yt-dlp se actualizează singur la câteva zile; din meniul ⋮ îl poți actualiza manual dacă descărcările nu mai merg.
 - Versiune nouă a aplicației: meniul ⋮ → **Versiune nouă a aplicației**, descarci din nou APK-ul și îl instalezi peste.
 - Dacă `TuneBox.apk` nu se instalează pe un telefon foarte vechi, încearcă [TuneBox-32bit.apk](https://github.com/gergelydez/TuneBox/releases/download/android/TuneBox-32bit.apk).
+
+### Muzica ta în Google Drive (opțional, o singură dată, ~10 minute)
+
+Cu Drive conectat, piesele descărcate ajung în folderul **TuneBox** din Google Drive, iar aplicația devine un player: le asculți de acolo (și cu ecranul stins), de pe **orice telefon** pe care instalezi TuneBox și te conectezi cu același cont Google. Ce ai ascultat o dată rămâne în cache, ca să nu se descarce din nou.
+
+Google cere ca aplicația să fie înregistrată într-un proiect Google Cloud al tău (e gratuit):
+
+1. Intră pe [console.cloud.google.com](https://console.cloud.google.com/) cu contul tău Google → sus, **Select a project → New project** → nume `TuneBox` → **Create**.
+2. În bara de căutare scrie **Google Drive API** → deschide-l → **Enable**.
+3. Meniul ☰ → **APIs & Services → OAuth consent screen** (sau **Google Auth Platform**) → **Get started**:
+   nume aplicație `TuneBox`, emailul tău, tip **External**, apoi **Create**.
+   La **Audience** apasă **Publish app** (aplicația cere doar acces la fișierele create de ea, deci nu e nevoie de verificare de la Google).
+4. **Credentials → Create credentials → OAuth client ID** (sau **Clients → Create client**) → tip **Android**:
+   - **Package name:** `ro.tunebox.app`
+   - **SHA-1:** `24:2A:7D:CD:AC:2C:48:12:27:F4:38:07:75:7F:0E:D7:0F:E0:31:6E`
+     (o găsești și în aplicație: meniul ⋮ → **Despre** → **Copiază SHA-1**)
+   - **Create**. Nu trebuie copiat nimic în aplicație.
+5. În TuneBox apasă **Conectează Drive** (sus) și alege contul. Gata.
+
+Pe al doilea telefon: instalezi același APK, apeși **Conectează Drive** cu același cont și vezi toate piesele.
+Folderul **TuneBox** îl vezi și în aplicația Google Drive sau pe drive.google.com. Aplicația vede doar piesele încărcate de ea (de pe oricare telefon), nu și fișiere puse manual în folder sau restul Drive-ului tău.
 
 Codul aplicației e în folderul `android/`; APK-ul se construiește automat pe GitHub la fiecare modificare.
 
