@@ -13,6 +13,7 @@ class App : Application() {
             val channel = NotificationChannel(DownloadService.CHANNEL, "Descărcări", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
+        Drive.load(this)
         // la prima pornire despachetează Python + ffmpeg (durează câteva secunde)
         thread(name = "ytdlp-init") { Downloader.init(this) }
     }

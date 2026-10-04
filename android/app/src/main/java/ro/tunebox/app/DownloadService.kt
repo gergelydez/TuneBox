@@ -67,7 +67,7 @@ class DownloadService : Service() {
                     val job = Downloader.nextQueued() ?: break
                     Downloader.run(this, job) { show(it) }
                     Downloader.current(job.id)?.let {
-                        savedTotal += it.saved
+                        savedTotal += maxOf(it.saved, it.uploaded)
                         if (it.status == Status.ERROR) failedTotal++
                     }
                 }
@@ -91,7 +91,7 @@ class DownloadService : Service() {
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         if (savedTotal > 0 || failedTotal > 0) {
             val text = buildString {
-                if (savedTotal > 0) append("$savedTotal ${if (savedTotal == 1) "piesă salvată" else "piese salvate"} în Music/TuneBox")
+                if (savedTotal > 0) append("$savedTotal ${if (savedTotal == 1) "piesă gata" else "piese gata"}")
                 if (failedTotal > 0) {
                     if (isNotEmpty()) append(" · ")
                     append("$failedTotal ${if (failedTotal == 1) "eroare" else "erori"}")
@@ -114,7 +114,8 @@ class DownloadService : Service() {
     private fun show(job: Job) {
         val state = when (job.status) {
             Status.CONVERTING -> "Conversie în MP3…"
-            Status.SAVING -> "Se salvează…"
+            Status.SAVING -> "Se salvează pe telefon…"
+            Status.UPLOADING -> "Se încarcă în Google Drive…"
             else -> "Se descarcă" + (if (job.item.isNotEmpty()) " · piesa ${job.item}" else "") + " · ${job.progress.toInt()}%"
         }
         notify(NOTIF_ID, notification(job.title.ifBlank { job.url }, state, job.progress))

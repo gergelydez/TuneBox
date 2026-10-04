@@ -12,18 +12,21 @@ import kotlinx.coroutines.flow.update
 import java.io.File
 import java.util.UUID
 
-enum class Status { QUEUED, RUNNING, CONVERTING, SAVING, DONE, ERROR, CANCELED }
+enum class Status { QUEUED, RUNNING, CONVERTING, SAVING, UPLOADING, DONE, ERROR, CANCELED }
 
 data class Job(
     val id: String = UUID.randomUUID().toString(),
     val url: String,
     val quality: Int,
     val playlist: Boolean,
+    val toDrive: Boolean = false,
+    val keepLocal: Boolean = true,
     val status: Status = Status.QUEUED,
     val progress: Float = 0f, // 0..100
     val title: String = "",
     val item: String = "",
     val saved: Int = 0,
+    val uploaded: Int = 0,
     val error: String = "",
     val warning: String = "",
 ) {
@@ -80,8 +83,10 @@ object Downloader {
     fun ytDlpVersion(context: Context): String =
         runCatching { YoutubeDL.getInstance().version(context) }.getOrNull() ?: "?"
 
-    fun enqueue(urls: List<String>, quality: Int, playlist: Boolean) {
-        val new = urls.map { Job(url = it, quality = quality, playlist = playlist) }
+    fun enqueue(urls: List<String>, quality: Int, playlist: Boolean, toDrive: Boolean, keepLocal: Boolean) {
+        val new = urls.map {
+            Job(url = it, quality = quality, playlist = playlist, toDrive = toDrive, keepLocal = keepLocal || !toDrive)
+        }
         _jobs.update { new.reversed() + it }
     }
 
@@ -175,20 +180,34 @@ object Downloader {
         val mp3s = dir.listFiles { f -> f.extension.equals("mp3", ignoreCase = true) }?.sortedBy { it.lastModified() }
             ?: emptyList()
         var saved = 0
-        if (mp3s.isNotEmpty()) {
-            update(job.id) { it.copy(status = Status.SAVING) }
-            current(job.id)?.let(onProgress)
-            for (f in mp3s) {
+        var uploaded = 0
+        var driveError = ""
+        for (f in mp3s) {
+            // întâi în Drive (dacă e cerut), apoi pe telefon dacă vrei copie sau dacă Drive a eșuat
+            var inDrive = false
+            if (job.toDrive) {
+                update(job.id) { it.copy(status = Status.UPLOADING) }
+                current(job.id)?.let(onProgress)
+                try {
+                    Drive.upload(context, f)
+                    inDrive = true
+                    uploaded++
+                } catch (e: Exception) {
+                    driveError = e.message ?: "Încărcarea în Drive a eșuat."
+                }
+            }
+            if (job.keepLocal || !inDrive) {
+                update(job.id) { it.copy(status = Status.SAVING) }
                 if (runCatching { Library.save(context, f) }.getOrDefault(false)) saved++
             }
-            if (saved > 0) libraryChanged()
         }
+        if (saved > 0 || uploaded > 0) libraryChanged()
         dir.deleteRecursively()
 
         update(job.id) {
             when {
-                canceled && saved == 0 -> it.copy(status = Status.CANCELED)
-                saved == 0 -> it.copy(
+                canceled && saved == 0 && uploaded == 0 -> it.copy(status = Status.CANCELED)
+                saved == 0 && uploaded == 0 -> it.copy(
                     status = Status.ERROR,
                     error = error.ifBlank { if (mp3s.isEmpty()) "Nu s-a descărcat nimic." else "Nu am putut salva în Music." },
                 )
@@ -196,12 +215,17 @@ object Downloader {
                     status = Status.DONE,
                     progress = 100f,
                     saved = saved,
+                    uploaded = uploaded,
                     title = when {
-                        saved > 1 -> "${mp3s.first().nameWithoutExtension} și încă ${saved - 1}"
+                        mp3s.size > 1 -> "${mp3s.first().nameWithoutExtension} și încă ${mp3s.size - 1}"
                         it.title.isBlank() -> mp3s.first().nameWithoutExtension
                         else -> it.title
                     },
-                    warning = if (error.isNotBlank() || saved < mp3s.size) "Unele piese nu s-au putut descărca." else "",
+                    warning = when {
+                        driveError.isNotBlank() -> "$driveError Piesele au rămas pe telefon."
+                        error.isNotBlank() -> "Unele piese nu s-au putut descărca."
+                        else -> ""
+                    },
                 )
             }
         }

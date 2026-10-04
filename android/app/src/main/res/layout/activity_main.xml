@@ -7,49 +7,240 @@
     android:fitsSystemWindows="true"
     android:orientation="vertical">
 
-    <androidx.core.widget.NestedScrollView
+    <!-- antet -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="4dp">
+
+        <ImageView
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:contentDescription="@null"
+            android:src="@mipmap/ic_launcher" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:text="TuneBox"
+            android:textColor="@color/text"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/driveChip"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:maxWidth="190dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:paddingStart="12dp"
+            android:paddingEnd="14dp"
+            android:text="Conectează Drive"
+            android:textSize="13sp"
+            app:icon="@drawable/ic_cloud"
+            app:iconSize="18dp" />
+
+        <ImageButton
+            android:id="@+id/menu"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Meniu"
+            android:src="@drawable/ic_more"
+            app:tint="@color/text" />
+    </LinearLayout>
+
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
 
+        <!-- pagina Muzică -->
         <LinearLayout
+            android:id="@+id/pageMusic"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="16dp">
+            android:layout_height="match_parent"
+            android:orientation="vertical">
 
-            <!-- antet -->
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/sourceTabs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginEnd="16dp"
+                app:selectionRequired="true"
+                app:singleSelection="true">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/tabDrive"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Google Drive"
+                    app:icon="@drawable/ic_cloud"
+                    app:iconSize="18dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/tabLocal"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Pe telefon"
+                    app:icon="@drawable/ic_phone"
+                    app:iconSize="18dp" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+
+            <EditText
+                android:id="@+id/search"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="10dp"
+                android:layout_marginEnd="16dp"
+                android:background="@drawable/input_bg"
+                android:drawableStart="@drawable/ic_search"
+                android:drawablePadding="8dp"
+                android:drawableTint="@color/muted"
+                android:hint="Caută o piesă"
+                android:importantForAutofill="no"
+                android:inputType="text"
+                android:maxLines="1"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:textColor="@color/text"
+                android:textColorHint="@color/muted"
+                android:textSize="15sp" />
+
+            <LinearLayout
+                android:id="@+id/actions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginEnd="16dp"
+                android:gravity="center_vertical">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/playAll"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Redă tot"
+                    app:icon="@drawable/ic_play" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/shuffleAll"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Amestecă"
+                    app:icon="@drawable/ic_shuffle" />
+
+                <TextView
+                    android:id="@+id/trackCount"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="end"
+                    android:textColor="@color/muted"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- Drive neconectat -->
+            <LinearLayout
+                android:id="@+id/driveConnect"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:padding="24dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_cloud"
+                    app:tint="@color/brand" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center"
+                    android:text="Toată muzica ta în Google Drive"
+                    android:textColor="@color/text"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center"
+                    android:text="Piesele descărcate ajung în folderul TuneBox din Drive și le asculți de pe orice telefon pe care instalezi aplicația."
+                    android:textColor="@color/muted" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/driveConnectBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="16dp"
+                    android:text="Conectează Google Drive"
+                    app:cornerRadius="14dp"
+                    app:icon="@drawable/ic_cloud" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/libEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:padding="24dp"
+                android:textColor="@color/muted"
+                android:visibility="gone" />
+
+            <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+                android:id="@+id/refresh"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/tracks"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="8dp" />
+            </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+        </LinearLayout>
+
+        <!-- pagina Descarcă -->
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/pageDownload"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <ImageView
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:contentDescription="@null"
-                    android:src="@mipmap/ic_launcher" />
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:text="TuneBox"
-                    android:textColor="@color/text"
-                    android:textSize="22sp"
-                    android:textStyle="bold" />
-
-                <ImageButton
-                    android:id="@+id/menu"
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="Meniu"
-                    android:src="@drawable/ic_more"
-                    app:tint="@color/text" />
-            </LinearLayout>
+                android:orientation="vertical"
+                android:padding="16dp">
 
             <TextView
                 android:id="@+id/engineStatus"
@@ -65,7 +256,7 @@
                 style="@style/Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp">
+                android:layout_marginTop="12dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -166,6 +357,22 @@
                         android:text="Tot playlistul\nDacă linkul face parte dintr-un playlist"
                         android:textColor="@color/text" />
 
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/toDrive"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Salvează în Google Drive\nPoți asculta piesele de pe orice telefon"
+                        android:textColor="@color/text" />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/keepLocal"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Păstrează și pe telefon\nO copie în Music/TuneBox, pentru ascultat fără internet"
+                        android:textColor="@color/text" />
+
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/download"
                         android:layout_width="match_parent"
@@ -220,58 +427,9 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- biblioteca -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/Card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:minHeight="40dp">
-
-                        <TextView
-                            style="@style/SectionTitle"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Biblioteca ta" />
-
-                        <TextView
-                            android:id="@+id/fileCount"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:textColor="@color/muted"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/empty"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:padding="8dp"
-                        android:text="Încă nu ai descărcat nimic.\nPiesele se salvează în Music/TuneBox."
-                        android:textColor="@color/muted" />
-
-                    <LinearLayout
-                        android:id="@+id/files"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-        </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+    </FrameLayout>
 
     <!-- player -->
     <LinearLayout
@@ -279,57 +437,137 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/surface"
-        android:elevation="8dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp"
+        android:elevation="6dp"
+        android:orientation="vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp"
         android:visibility="gone">
 
-        <ImageButton
-            android:id="@+id/playerToggle"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="@drawable/round_btn"
-            android:contentDescription="Pauză"
-            android:src="@drawable/ic_pause"
-            app:tint="#FFFFFF" />
-
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:gravity="center_vertical">
+
+            <ImageButton
+                android:id="@+id/shuffle"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Amestecă"
+                android:src="@drawable/ic_shuffle"
+                app:tint="@color/muted" />
 
             <TextView
-                android:id="@+id/playerName"
-                android:layout_width="match_parent"
+                android:id="@+id/position"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="@color/text"
-                android:textStyle="bold" />
+                android:minWidth="36dp"
+                android:gravity="end"
+                android:text="0:00"
+                android:textColor="@color/muted"
+                android:textSize="11sp" />
 
             <SeekBar
-                android:id="@+id/playerSeek"
-                android:layout_width="match_parent"
+                android:id="@+id/seek"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:paddingStart="0dp"
-                android:paddingEnd="0dp" />
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/duration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="36dp"
+                android:text="0:00"
+                android:textColor="@color/muted"
+                android:textSize="11sp" />
+
+            <ImageButton
+                android:id="@+id/repeat"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Repetă"
+                android:src="@drawable/ic_repeat"
+                app:tint="@color/muted" />
         </LinearLayout>
 
-        <ImageButton
-            android:id="@+id/playerClose"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Închide"
-            android:src="@drawable/ic_close"
-            app:tint="@color/muted" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:id="@+id/art"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/art_bg"
+                android:contentDescription="@null"
+                android:padding="12dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/ic_music"
+                app:tint="@color/muted" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/nowTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="marquee"
+                    android:marqueeRepeatLimit="marquee_forever"
+                    android:singleLine="true"
+                    android:textColor="@color/text"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/nowSub"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/muted"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/prev"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Anterioara"
+                android:src="@drawable/ic_skip_prev"
+                app:tint="@color/text" />
+
+            <ImageButton
+                android:id="@+id/playPause"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/round_btn"
+                android:contentDescription="Redă"
+                android:src="@drawable/ic_play"
+                app:tint="#FFFFFF" />
+
+            <ImageButton
+                android:id="@+id/next"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Următoarea"
+                android:src="@drawable/ic_skip_next"
+                app:tint="@color/text" />
+        </LinearLayout>
     </LinearLayout>
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/nav"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:menu="@menu/bottom_nav" />
 </LinearLayout>

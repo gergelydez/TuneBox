@@ -11,7 +11,20 @@ import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import java.io.File
 
-data class Track(val uri: Uri, val name: String, val size: Long, val added: Long, val file: File? = null)
+enum class Source { LOCAL, DRIVE }
+
+data class Track(
+    val id: String,
+    val uri: Uri,
+    val name: String,
+    val size: Long,
+    val added: Long,
+    val source: Source,
+    val file: File? = null,
+    val driveId: String? = null,
+) {
+    val title get() = name.substringBeforeLast('.')
+}
 
 // Piesele stau în Music/TuneBox, unde le vede orice player de muzică
 object Library {
@@ -74,11 +87,14 @@ object Library {
                 val size = c.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
                 val added = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
                 while (c.moveToNext()) {
+                    val uri = ContentUris.withAppendedId(collection, c.getLong(id))
                     tracks += Track(
-                        uri = ContentUris.withAppendedId(collection, c.getLong(id)),
+                        id = uri.toString(),
+                        uri = uri,
                         name = c.getString(name) ?: "?",
                         size = c.getLong(size),
                         added = c.getLong(added),
+                        source = Source.LOCAL,
                     )
                 }
             }
@@ -87,8 +103,11 @@ object Library {
 
         val files = legacyDir().listFiles { f -> f.extension.equals("mp3", true) } ?: return emptyList()
         return files.sortedByDescending { it.lastModified() }.map {
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", it)
             Track(
-                uri = FileProvider.getUriForFile(context, "${context.packageName}.files", it),
+                id = uri.toString(),
+                uri = uri,
+                source = Source.LOCAL,
                 name = it.name,
                 size = it.length(),
                 added = it.lastModified() / 1000,
