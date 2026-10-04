@@ -1,0 +1,101 @@
+# YT → MP3
+
+Aplicație web personală (Next.js) care descarcă audio în MP3 cu **yt-dlp**, merge pe telefon și poate trimite fișierele direct în **Google Drive**.
+
+- Lipești unul sau mai multe linkuri (sau un playlist), alegi calitatea 128–320 kbps
+- Progres live, bibliotecă cu player, salvare pe telefon, ștergere
+- Trimitere în Google Drive (automat după descărcare sau manual, piesă cu piesă)
+- Se instalează pe ecranul telefonului ca o aplicație; pe Android apare în meniul **Partajează** din YouTube
+- Parolă opțională, ca să n-o poată folosi altcineva
+
+> Aplicația trebuie să ruleze pe un calculator sau server pe care îl controlezi (nu pe Vercel/Netlify): are nevoie de yt-dlp și ffmpeg, iar YouTube blochează de obicei serverele din centre de date. Telefonul doar o deschide în browser.
+
+Folosește-o pentru conținut pe care ai dreptul să-l descarci.
+
+---
+
+## 1. Pornire rapidă pe calculatorul tău
+
+**Ai nevoie de:** Node.js 20+ , yt-dlp și ffmpeg.
+
+| Sistem | Instalare |
+|---|---|
+| Windows | `winget install OpenJS.NodeJS.LTS yt-dlp.yt-dlp Gyan.FFmpeg` |
+| macOS | `brew install node yt-dlp ffmpeg` |
+| Linux | `sudo apt install nodejs npm ffmpeg` + `pip install -U yt-dlp` |
+
+```bash
+cd yt-mp3
+cp .env.example .env      # pe Windows: copy .env.example .env
+npm install
+npm run build
+npm start
+```
+
+Deschide `http://localhost:3000`.
+
+### De pe telefon (aceeași rețea Wi-Fi)
+
+1. Află IP-ul calculatorului (Windows: `ipconfig`, macOS/Linux: `ip a` sau Setări → Wi-Fi), ex. `192.168.1.50`.
+2. Pe telefon deschide `http://192.168.1.50:3000`.
+3. Din meniul browserului: **Adaugă pe ecranul principal**.
+
+Pe Windows, la prima pornire acceptă cererea firewall-ului pentru „Rețele private”.
+
+---
+
+## 2. Google Drive (opțional)
+
+1. Intră în [Google Cloud Console](https://console.cloud.google.com/), creează un proiect.
+2. **APIs & Services → Library** → activează **Google Drive API**.
+3. **OAuth consent screen** → tip *External*, completează numele, iar la **Test users** adaugă adresa ta de Gmail.
+4. **Credentials → Create credentials → OAuth client ID** → *Web application*.
+   La **Authorized redirect URIs** pune exact: `APP_URL` + `/api/drive/callback`, ex.
+   `http://localhost:3000/api/drive/callback`
+5. Copiază Client ID și Client Secret în `.env`:
+   ```
+   GOOGLE_CLIENT_ID=...
+   GOOGLE_CLIENT_SECRET=...
+   APP_URL=http://localhost:3000
+   ```
+6. Repornește aplicația și apasă **Conectează Drive** (sus, dreapta).
+
+Fișierele ajung în folderul **YT MP3** din Drive. Aplicația are acces doar la fișierele create de ea (permisiunea `drive.file`), nu la restul Drive-ului tău.
+
+**Important:** Google acceptă `http://` doar pentru `localhost`. Ca să conectezi Drive-ul **de pe telefon**, ai nevoie de o adresă `https://` (vezi secțiunea 3). Alternativ: conectezi o singură dată de pe calculator, la `http://localhost:3000` — după asta încărcarea în Drive merge și când folosești aplicația de pe telefon.
+
+---
+
+## 3. Acces de oriunde (opțional)
+
+Cea mai simplă variantă sigură e [Tailscale](https://tailscale.com/) (gratuit): îl instalezi pe calculator și pe telefon, apoi activezi `tailscale serve 3000` și primești o adresă `https://nume.ts.net` accesibilă doar de pe dispozitivele tale.
+
+Altă variantă: **Cloudflare Tunnel**. În ambele cazuri:
+- pune adresa nouă în `APP_URL` și adaug-o la redirect URIs în Google;
+- **setează `APP_PASSWORD`** în `.env`.
+
+Cu `https://`, pe Android aplicația instalată apare în meniul **Partajează** din YouTube: apeși Share → YT MP3 și linkul se completează singur.
+
+---
+
+## 4. Cu Docker (server acasă, NAS, Raspberry Pi)
+
+```bash
+cp .env.example .env    # completează ce ai nevoie
+docker compose up -d --build
+```
+
+yt-dlp se actualizează automat la fiecare repornire a containerului.
+
+---
+
+## Probleme frecvente
+
+| Problemă | Soluție |
+|---|---|
+| „yt-dlp nu este instalat” | Instalează-l sau pune calea completă în `YTDLP_PATH` din `.env` |
+| Eroare la conversie | ffmpeg lipsește; pe Windows poți pune folderul lui în `FFMPEG_DIR` |
+| Descărcările nu mai merg brusc | Actualizează yt-dlp: `yt-dlp -U` sau `pip install -U yt-dlp` |
+| „Sign in to confirm you're not a bot” | Apare pe servere din centre de date — rulează aplicația acasă |
+| Drive: `redirect_uri_mismatch` | Redirect URI din Google trebuie să fie identic cu `APP_URL/api/drive/callback` |
+| Drive: „access blocked” | Adaugă-ți adresa la *Test users* pe ecranul de consimțământ |
