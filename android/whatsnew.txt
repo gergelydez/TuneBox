@@ -1,2 +1,3 @@
-• Fără pauze între piese: la descărcare se taie liniștea de la începutul și sfârșitul piesei (pauzele din mijloc rămân)
-• Opțiunea „Taie liniștea” e în tabul Descarcă și e pornită implicit
+• Player pe tot ecranul: apasă pe player-ul de jos — copertă mare, bară de timp pe care o tragi, butoane −10 s / +10 s, anterioara / următoarea
+• Butoanele −10 s / +10 s apar și în notificare și pe ecranul de blocare
+• Android Auto: TuneBox apare pe ecranul mașinii, cu folderele din Drive și de pe telefon

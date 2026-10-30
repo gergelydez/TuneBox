@@ -16,15 +16,27 @@ import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.session.CommandButton
+import androidx.media3.session.LibraryResult
+import androidx.media3.session.MediaLibraryService
+import androidx.media3.session.MediaLibraryService.LibraryParams
+import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
+import com.google.common.collect.ImmutableList
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.MoreExecutors
+import java.util.concurrent.Executors
 import java.io.File
 import java.io.IOException
 
 // Player-ul rulează aici, ca muzica să meargă și cu ecranul stins / din altă aplicație
 @OptIn(UnstableApi::class)
-class PlaybackService : MediaSessionService() {
-    private var session: MediaSession? = null
+class PlaybackService : MediaLibraryService() {
+    private var session: MediaLibrarySession? = null
+    private val io = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor())
 
     override fun onCreate() {
         super.onCreate()
@@ -63,6 +75,8 @@ class PlaybackService : MediaSessionService() {
             )
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
+            .setSeekBackIncrementMs(10_000)
+            .setSeekForwardIncrementMs(10_000)
             .build()
 
         val open = PendingIntent.getActivity(
@@ -70,10 +84,75 @@ class PlaybackService : MediaSessionService() {
             Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        session = MediaSession.Builder(context, player).setSessionActivity(open).build()
+        // butoane -10 s / +10 s în notificare, pe ecranul de blocare și în mașină
+        val seekButtons = ImmutableList.of(
+            CommandButton.Builder()
+                .setPlayerCommand(Player.COMMAND_SEEK_BACK)
+                .setIconResId(R.drawable.ic_fast_rewind)
+                .setDisplayName("Înapoi 10 s")
+                .build(),
+            CommandButton.Builder()
+                .setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
+                .setIconResId(R.drawable.ic_fast_forward)
+                .setDisplayName("Înainte 10 s")
+                .build(),
+        )
+        session = MediaLibrarySession.Builder(context, player, LibraryCallback())
+            .setSessionActivity(open)
+            .setCustomLayout(seekButtons)
+            .build()
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
+
+    /** Ce vede mașina (Android Auto): folderele și piesele din Drive și de pe telefon. */
+    private inner class LibraryCallback : MediaLibrarySession.Callback {
+        override fun onGetLibraryRoot(
+            session: MediaLibrarySession, browser: MediaSession.ControllerInfo, params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<MediaItem>> =
+            Futures.immediateFuture(LibraryResult.ofItem(LibraryTree.rootItem(), params))
+
+        override fun onGetChildren(
+            session: MediaLibrarySession, browser: MediaSession.ControllerInfo, parentId: String,
+            page: Int, pageSize: Int, params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = io.submit<LibraryResult<ImmutableList<MediaItem>>> {
+            val all = LibraryTree.children(this@PlaybackService, parentId)
+            val from = (page * pageSize).coerceAtMost(all.size)
+            val to = (from + pageSize).coerceAtMost(all.size)
+            LibraryResult.ofItemList(ImmutableList.copyOf(if (pageSize > 0) all.subList(from, to) else all), params)
+        }
+
+        override fun onGetItem(
+            session: MediaLibrarySession, browser: MediaSession.ControllerInfo, mediaId: String,
+        ): ListenableFuture<LibraryResult<MediaItem>> = io.submit<LibraryResult<MediaItem>> {
+            LibraryTree.item(this@PlaybackService, mediaId)?.let { LibraryResult.ofItem(it, null) }
+                ?: LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE)
+        }
+
+        override fun onAddMediaItems(
+            mediaSession: MediaSession, controller: MediaSession.ControllerInfo, mediaItems: MutableList<MediaItem>,
+        ): ListenableFuture<MutableList<MediaItem>> = io.submit<MutableList<MediaItem>> {
+            mediaItems.map { LibraryTree.resolve(this@PlaybackService, it) }.toMutableList()
+        }
+
+        override fun onSetMediaItems(
+            mediaSession: MediaSession, controller: MediaSession.ControllerInfo, mediaItems: MutableList<MediaItem>,
+            startIndex: Int, startPositionMs: Long,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = io.submit<MediaSession.MediaItemsWithStartPosition> {
+            val first = mediaItems.firstOrNull()
+            // din mașină vine o singură piesă (doar id-ul): redăm tot folderul, pornind de la ea
+            val queue = if (mediaItems.size == 1 && first != null && first.localConfiguration == null) {
+                LibraryTree.queueFor(this@PlaybackService, first.mediaId)
+            } else null
+            if (queue != null) {
+                MediaSession.MediaItemsWithStartPosition(queue.first, queue.second, startPositionMs.takeIf { it > 0 } ?: C.TIME_UNSET)
+            } else {
+                MediaSession.MediaItemsWithStartPosition(
+                    mediaItems.map { LibraryTree.resolve(this@PlaybackService, it) }, startIndex, startPositionMs,
+                )
+            }
+        }
+    }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = session?.player
@@ -81,6 +160,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        io.shutdown()
         session?.run {
             player.release()
             release()

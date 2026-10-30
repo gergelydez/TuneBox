@@ -71,6 +71,7 @@ class MainActivity : AppCompatActivity() {
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
     private var seeking = false
+    private var seekingFull = false
     private var pendingUpdate: UpdateInfo? = null
     private var updating = false
 
@@ -680,27 +681,81 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
     }
 
+    private val closeFullOnBack = object : androidx.activity.OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() = showFull(false)
+    }
+
+    private fun showFull(show: Boolean) {
+        if (show && controller?.currentMediaItem == null) return
+        b.full.root.visibility = if (show) View.VISIBLE else View.GONE
+        closeFullOnBack.isEnabled = show
+        if (show) {
+            b.full.fullTitle.isSelected = true
+            updatePlayer()
+        }
+    }
+
+    private fun togglePlay() {
+        val c = controller ?: return
+        if (c.isPlaying) c.pause() else {
+            if (c.playbackState == Player.STATE_IDLE) c.prepare()
+            if (c.playbackState == Player.STATE_ENDED) c.seekToDefaultPosition()
+            c.play()
+        }
+    }
+
+    private fun toggleShuffle() = controller?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled }
+
+    private fun cycleRepeat() = controller?.let {
+        it.repeatMode = when (it.repeatMode) {
+            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
+        }
+    }
+
     private fun setupPlayer() {
-        b.playPause.setOnClickListener {
-            val c = controller ?: return@setOnClickListener
-            if (c.isPlaying) c.pause() else {
-                if (c.playbackState == Player.STATE_IDLE) c.prepare()
-                if (c.playbackState == Player.STATE_ENDED) c.seekToDefaultPosition()
-                c.play()
+        onBackPressedDispatcher.addCallback(this, closeFullOnBack)
+        b.player.setOnClickListener { showFull(true) }
+        b.nowTitle.setOnClickListener { showFull(true) }
+        b.art.setOnClickListener { showFull(true) }
+
+        val f = b.full
+        f.fullClose.setOnClickListener { showFull(false) }
+        f.fullPlay.setOnClickListener { togglePlay() }
+        f.fullPrev.setOnClickListener { controller?.seekToPrevious() }
+        f.fullNext.setOnClickListener { controller?.seekToNext() }
+        f.fullBack.setOnClickListener { controller?.seekBack() }
+        f.fullFwd.setOnClickListener { controller?.seekForward() }
+        f.fullShuffle.setOnClickListener { toggleShuffle() }
+        f.fullRepeat.setOnClickListener { cycleRepeat() }
+        f.fullSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, value: Int, fromUser: Boolean) {
+                if (fromUser) f.fullPosition.text = time(value.toLong())
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) { seekingFull = true }
+            override fun onStopTrackingTouch(s: SeekBar?) {
+                seekingFull = false
+                controller?.seekTo((s?.progress ?: 0).toLong())
+            }
+        })
+        // coperta pătrată: cât permite spațiul liber
+        f.fullArtBox.addOnLayoutChangeListener { box, _, _, _, _, _, _, _, _ ->
+            val side = minOf(box.width, box.height)
+            val lp = f.fullArt.layoutParams
+            if (side > 0 && (lp.width != side || lp.height != side)) {
+                lp.width = side
+                lp.height = side
+                f.fullArt.post { f.fullArt.layoutParams = lp }
             }
         }
+        f.fullArt.clipToOutline = true
+
+        b.playPause.setOnClickListener { togglePlay() }
         b.next.setOnClickListener { controller?.seekToNext() }
         b.prev.setOnClickListener { controller?.seekToPrevious() }
-        b.shuffle.setOnClickListener { controller?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled } }
-        b.repeat.setOnClickListener {
-            controller?.let {
-                it.repeatMode = when (it.repeatMode) {
-                    Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                    Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                    else -> Player.REPEAT_MODE_OFF
-                }
-            }
-        }
+        b.shuffle.setOnClickListener { toggleShuffle() }
+        b.repeat.setOnClickListener { cycleRepeat() }
         b.seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, value: Int, fromUser: Boolean) {
                 if (fromUser) b.position.text = time(value.toLong())
@@ -723,6 +778,7 @@ class MainActivity : AppCompatActivity() {
                     MediaMetadata.Builder()
                         .setTitle(t.title)
                         .setArtist(if (t.source == Source.DRIVE) "Google Drive" else "Pe telefon")
+                        .setAlbumTitle(t.folder.ifBlank { "TuneBox" })
                         .build()
                 )
                 .build()
@@ -738,6 +794,7 @@ class MainActivity : AppCompatActivity() {
         val item = c?.currentMediaItem
         if (c == null || item == null) {
             b.player.visibility = View.GONE
+            if (b.full.root.visibility == View.VISIBLE) showFull(false)
             adapter.playingId = null
             return
         }
@@ -772,6 +829,30 @@ class MainActivity : AppCompatActivity() {
         c.playerError?.let { e ->
             b.nowSub.text = "Eroare: " + (e.cause?.message ?: e.errorCodeName)
         }
+
+        val f = b.full
+        if (f.fullTitle.text.toString() != title) {
+            f.fullTitle.text = title
+            f.fullTitle.isSelected = true
+        }
+        f.fullSub.text = b.nowSub.text
+        f.fullContext.text = item.mediaMetadata.albumTitle?.toString()?.takeIf { it.isNotBlank() } ?: "Se redă acum"
+        if (art != null) {
+            f.fullArt.setImageBitmap(art)
+            f.fullArt.imageTintList = null
+            f.fullArt.scaleType = ImageView.ScaleType.CENTER_CROP
+        } else {
+            f.fullArt.setImageResource(R.drawable.ic_music)
+            f.fullArt.imageTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.muted))
+            f.fullArt.scaleType = ImageView.ScaleType.CENTER_INSIDE
+        }
+        f.fullPlay.setImageResource(if (c.isPlaying || (loading && c.playWhenReady)) R.drawable.ic_pause else R.drawable.ic_play)
+        f.fullShuffle.imageTintList = tint(c.shuffleModeEnabled)
+        f.fullRepeat.setImageResource(if (c.repeatMode == Player.REPEAT_MODE_ONE) R.drawable.ic_repeat_one else R.drawable.ic_repeat)
+        f.fullRepeat.imageTintList = tint(c.repeatMode != Player.REPEAT_MODE_OFF)
+        f.fullPrev.alpha = if (c.hasPreviousMediaItem() || c.currentPosition > 3000) 1f else 0.4f
+        f.fullNext.alpha = if (c.hasNextMediaItem()) 1f else 0.4f
+
         adapter.playingId = item.mediaId
         updateProgress()
     }
@@ -788,6 +869,17 @@ class MainActivity : AppCompatActivity() {
             b.position.text = time(c.currentPosition)
         }
         b.seek.secondaryProgress = c.bufferedPosition.toInt()
+
+        if (b.full.root.visibility == View.VISIBLE) {
+            val f = b.full
+            f.fullSeek.max = dur.toInt()
+            f.fullDuration.text = time(dur)
+            if (!seekingFull) {
+                f.fullSeek.progress = c.currentPosition.toInt()
+                f.fullPosition.text = time(c.currentPosition)
+            }
+            f.fullSeek.secondaryProgress = c.bufferedPosition.toInt()
+        }
     }
 
     private fun time(ms: Long): String {
